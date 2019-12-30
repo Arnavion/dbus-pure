@@ -2,6 +2,11 @@
 pub(crate) struct Serializer<'ser> {
 	buf: &'ser mut Vec<u8>,
 	start: usize,
+
+	// Used by SeqSerializer to know how much padding was inserted before the first element of the array.
+	// Each serializer appends a new value into the Vec when it's created, and pops it out when it's done.
+	// Serializer itself updates the last value in the Vec whenever its pad_to is called if the last value is None.
+	array_start_paddings: Vec<Option<usize>>,
 }
 
 impl<'ser> Serializer<'ser> {
@@ -10,6 +15,7 @@ impl<'ser> Serializer<'ser> {
 		Serializer {
 			buf,
 			start,
+			array_start_paddings: vec![],
 		}
 	}
 
@@ -18,6 +24,10 @@ impl<'ser> Serializer<'ser> {
 		let new_pos = ((pos + alignment - 1) / alignment) * alignment;
 		let new_len = self.start + new_pos;
 		self.buf.resize(new_len, 0);
+
+		if let Some(last_array_start_paddings @ None) = self.array_start_paddings.last_mut() {
+			*last_array_start_paddings = Some(new_pos - pos);
+		}
 	}
 }
 
@@ -137,8 +147,15 @@ impl<'ser, 'a> serde::Serializer for &'a mut Serializer<'ser> {
 	}
 
 	fn serialize_seq(self, _len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
+		// Insert a record for the new serializer before serializing the length,
+		// so that serializing the 0 length below does not modify the previous serializer's value (if any).
+		self.array_start_paddings.push(None);
+
 		serde::Serialize::serialize(&0_u32, &mut *self)?;
 		let data_len_pos = self.buf.len() - 4;
+
+		// ... and reset the padding back to None to forget about the u32 len's padding.
+		*self.array_start_paddings.last_mut().unwrap() = None;
 
 		Ok(SeqSerializer {
 			inner: self,
@@ -186,14 +203,23 @@ impl<'ser, 'a> serde::ser::SerializeSeq for SeqSerializer<'ser, 'a> {
 	type Error = SerializeError;
 
 	fn serialize_element<T>(&mut self, value: &T) -> Result<(), Self::Error> where T: serde::Serialize + ?Sized {
-		value.serialize(&mut *self.inner)
+		value.serialize(&mut *self.inner)?;
+		Ok(())
 	}
 
 	fn end(self) -> Result<Self::Ok, Self::Error> {
-		let data_start_pos = self.data_len_pos + 4;
+		let last_array_start_padding =
+			self.inner.array_start_paddings.pop()
+			.unwrap()
+			.unwrap_or(0);
+		let data_start_pos = self.data_len_pos + 4 + last_array_start_padding;
+
 		let data_end_pos = self.inner.buf.len();
+
 		let data_len: u32 = std::convert::TryInto::try_into(data_end_pos - data_start_pos).map_err(serde::ser::Error::custom)?;
+
 		self.inner.buf[self.data_len_pos..(self.data_len_pos + 4)].copy_from_slice(&data_len.to_le_bytes());
+
 		Ok(())
 	}
 }

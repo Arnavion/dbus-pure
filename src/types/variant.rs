@@ -143,9 +143,9 @@ impl serde::Serialize for Variant {
 				value.serialize(serializer),
 
 			Variant::DictEntry { key, value } => {
-				let mut serializer = serializer.serialize_tuple(2)?;
-				serializer.serialize_element(key)?;
-				serializer.serialize_element(value)?;
+				let mut serializer = serializer.serialize_struct("", 2)?;
+				serializer.serialize_field("key", key)?;
+				serializer.serialize_field("value", value)?;
 				serializer.end()
 			},
 
@@ -411,21 +411,24 @@ impl<'de, 'a> serde::de::DeserializeSeed<'de> for VariantDeserializeSeed<'a> {
 #[cfg(test)]
 mod tests {
 	#[test]
-	fn test_deserialize_variant() {
+	fn test_variant_serde() {
 		fn test(
 			signature: &str,
-			buf: &[u8],
+			expected_serialized: &[u8],
 			expected_variant: super::Variant,
 		) {
 			let signature: crate::types::Signature = signature.parse().unwrap();
 
 			let deserialize_seed = crate::types::VariantDeserializeSeed::new(&signature).unwrap();
 
-			let mut deserializer = crate::de::Deserializer::new(buf, 0);
-
+			let mut deserializer = crate::de::Deserializer::new(expected_serialized, 0);
 			let actual_variant: super::Variant = serde::de::DeserializeSeed::deserialize(deserialize_seed, &mut deserializer).unwrap();
-
 			assert_eq!(expected_variant, actual_variant);
+
+			let mut actual_serialized = vec![];
+			let mut serializer = crate::ser::Serializer::new(&mut actual_serialized);
+			serde::Serialize::serialize(&actual_variant, &mut serializer).unwrap();
+			assert_eq!(expected_serialized, &*actual_serialized);
 		}
 
 		test(
