@@ -11,6 +11,8 @@
 	clippy::similar_names,
 	clippy::too_many_lines,
 	clippy::unneeded_field_pattern,
+	clippy::unknown_clippy_lints,
+	clippy::use_self,
 )]
 
 //! This is a pure Rust implementation of a D-Bus client.

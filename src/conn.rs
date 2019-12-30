@@ -84,6 +84,7 @@ impl Connection {
 		let mut writer = stream;
 		let write_buf = vec![];
 
+		#[allow(clippy::write_with_newline)]
 		write!(writer, "\0AUTH EXTERNAL {}\r\n", sasl_auth_id).map_err(ConnectError::Authenticate)?;
 		writer.flush().map_err(ConnectError::Authenticate)?;
 
