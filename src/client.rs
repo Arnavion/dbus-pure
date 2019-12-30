@@ -45,6 +45,8 @@ impl Client {
 	///
 	/// - The `MessageHeaderField::Sender` field will be automatically inserted and must not be inserted by the caller.
 	///
+	/// - The `MessageHeaderField::Signature` field will be automatically inserted if a body is specified, and must not be inserted by the caller.
+	///
 	/// Returns the serial of the message.
 	pub fn send(&mut self, header: &mut crate::types::MessageHeader, body: Option<&crate::types::Variant>) -> Result<u32, SendError> {
 		let connection = self.connection.as_mut().ok_or(SendError::Poisoned)?;
