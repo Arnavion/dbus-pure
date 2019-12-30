@@ -12,17 +12,18 @@ fn main() -> Result<(), Error> {
 	// on the `/org/freedesktop/DBus` object at the destination `org.freedesktop.DBus`.
 	let names =
 		client.method_call(
-			"org.freedesktop.DBus".to_owned(),
-			dbus_pure::types::ObjectPath("/org/freedesktop/DBus".to_owned()),
-			"org.freedesktop.DBus".to_owned(),
-			"ListNames".to_owned(),
+			"org.freedesktop.DBus",
+			dbus_pure::types::ObjectPath("/org/freedesktop/DBus".into()),
+			"org.freedesktop.DBus",
+			"ListNames",
 			None,
 		)?
 		.ok_or(None)
 		.and_then(|body| body.into_array(&dbus_pure::types::Signature::String).map_err(Some))
-		.map_err(|body| format!("ListNames response failed with {:#?}", body))?
-		.into_iter()
-		.map(|element| element.into_string().unwrap());
+		.map_err(|body| format!("ListNames response failed with {:#?}", body))?;
+	let names =
+		names.iter()
+		.map(|element| element.as_string().unwrap());
 
 	// MPRIS media players have names that start with "org.mpris.MediaPlayer2."
 	let media_player_names = names.filter(|object_name| object_name.starts_with("org.mpris.MediaPlayer2."));
@@ -39,20 +40,20 @@ fn main() -> Result<(), Error> {
 		// with two parameters - the interface name and the property name.
 		let playback_status =
 			client.method_call(
-				media_player_name.clone(),
-				dbus_pure::types::ObjectPath("/org/mpris/MediaPlayer2".to_owned()),
-				"org.freedesktop.DBus.Properties".to_owned(),
-				"Get".to_owned(),
+				media_player_name,
+				dbus_pure::types::ObjectPath("/org/mpris/MediaPlayer2".into()),
+				"org.freedesktop.DBus.Properties",
+				"Get",
 				Some(&dbus_pure::types::Variant::Tuple {
-					elements: vec![
-						dbus_pure::types::Variant::String("org.mpris.MediaPlayer2.Player".to_owned()),
-						dbus_pure::types::Variant::String("PlaybackStatus".to_owned()),
-					],
+					elements: (&[
+						dbus_pure::types::Variant::String("org.mpris.MediaPlayer2.Player".into()),
+						dbus_pure::types::Variant::String("PlaybackStatus".into()),
+					][..]).into(),
 				}),
 			)?
 			.ok_or(None)
 			.and_then(|body| body.into_variant().map_err(Some))
-			.and_then(|body| body.into_string().map_err(Some))
+			.and_then(|body| body.into_owned().into_string().map_err(Some))
 			.map_err(|body| format!("GetPlaybackStatus response failed with {:#?}", body))?;
 
 		println!("{} is {}", media_player_name, playback_status);

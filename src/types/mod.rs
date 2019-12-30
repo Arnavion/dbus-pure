@@ -17,15 +17,15 @@ pub use variant::{
 
 /// An object path.
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct ObjectPath(pub String);
+pub struct ObjectPath<'a>(pub std::borrow::Cow<'a, str>);
 
-impl serde::Serialize for ObjectPath {
+impl serde::Serialize for ObjectPath<'_> {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
 		self.0.serialize(serializer)
 	}
 }
 
-impl<'de> serde::Deserialize<'de> for ObjectPath {
+impl<'de, 'a> serde::Deserialize<'de> for ObjectPath<'a> {
 	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
 		Ok(ObjectPath(serde::de::Deserialize::deserialize(deserializer)?))
 	}

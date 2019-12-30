@@ -38,15 +38,16 @@
 //! // on the `/org/freedesktop/DBus` object at the destination `org.freedesktop.DBus`.
 //! let names =
 //!     client.method_call(
-//!         "org.freedesktop.DBus".to_owned(),
-//!         dbus_pure::types::ObjectPath("/org/freedesktop/DBus".to_owned()),
-//!         "org.freedesktop.DBus".to_owned(),
-//!         "ListNames".to_owned(),
+//!         "org.freedesktop.DBus",
+//!         dbus_pure::types::ObjectPath("/org/freedesktop/DBus".into()),
+//!         "org.freedesktop.DBus",
+//!         "ListNames",
 //!         None,
 //!     )?
 //!     .ok_or(None)
 //!     .and_then(|body| body.into_array(&dbus_pure::types::Signature::String).map_err(Some))
 //!     .map_err(|body| format!("ListNames response failed with {:#?}", body))?
+//!     .into_owned()
 //!     .into_iter()
 //!     .map(|element| element.into_string().unwrap());
 //!
@@ -65,5 +66,7 @@ pub mod conn;
 pub(crate) mod de;
 
 pub(crate) mod ser;
+
+pub mod std2;
 
 pub mod types;

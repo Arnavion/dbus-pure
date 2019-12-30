@@ -1,8 +1,8 @@
 /// Message header.
 #[derive(Debug)]
-pub struct MessageHeader {
+pub struct MessageHeader<'a> {
 	/// The message type.
-	pub r#type: MessageType,
+	pub r#type: MessageType<'a>,
 
 	/// The message flags.
 	pub flags: MessageFlags,
@@ -14,13 +14,13 @@ pub struct MessageHeader {
 	pub serial: u32,
 
 	/// Header fields.
-	pub fields: Vec<MessageHeaderField>,
+	pub fields: std::borrow::Cow<'a, [MessageHeaderField<'a>]>,
 }
 
-pub(crate) fn deserialize_message(buf: &[u8]) -> Result<(MessageHeader, Option<crate::types::Variant>, usize), crate::de::DeserializeError> {
+pub(crate) fn deserialize_message(buf: &[u8]) -> Result<(MessageHeader<'static>, Option<crate::types::Variant<'static>>, usize), crate::de::DeserializeError> {
 	let mut deserializer = crate::de::Deserializer::new(buf, 0);
 
-	let mut message_header: MessageHeader = serde::Deserialize::deserialize(&mut deserializer)?;
+	let mut message_header: MessageHeader<'static> = serde::Deserialize::deserialize(&mut deserializer)?;
 
 	deserializer.pad_to(8)?;
 
@@ -47,7 +47,7 @@ pub(crate) fn deserialize_message(buf: &[u8]) -> Result<(MessageHeader, Option<c
 
 			let mut deserializer = crate::de::Deserializer::new(&buf[..body_end_pos], body_start_pos);
 
-			let message_body: crate::types::Variant = serde::de::DeserializeSeed::deserialize(deserialize_seed, &mut deserializer)?;
+			let message_body: crate::types::Variant<'static> = serde::de::DeserializeSeed::deserialize(deserialize_seed, &mut deserializer)?;
 
 			(Some(message_body), body_end_pos)
 		}
@@ -145,31 +145,33 @@ pub(crate) fn deserialize_message(buf: &[u8]) -> Result<(MessageHeader, Option<c
 }
 
 pub(crate) fn serialize_message(
-	header: &mut MessageHeader,
-	body: Option<&crate::types::Variant>,
+	header: &mut MessageHeader<'_>,
+	body: Option<&crate::types::Variant<'_>>,
 	buf: &mut Vec<u8>,
 ) -> Result<(), crate::ser::SerializeError> {
 	use serde::Serialize;
 
+	let header_fields = header.fields.to_mut();
+
 	match &header.r#type {
 		MessageType::Error { name, reply_serial } => {
-			header.fields.push(MessageHeaderField::ErrorName(name.clone()));
-			header.fields.push(MessageHeaderField::ReplySerial(*reply_serial));
+			header_fields.push(MessageHeaderField::ErrorName(name.clone()));
+			header_fields.push(MessageHeaderField::ReplySerial(*reply_serial));
 		},
 
 		MessageType::MethodCall { member, path } => {
-			header.fields.push(MessageHeaderField::Member(member.clone()));
-			header.fields.push(MessageHeaderField::Path(path.clone()));
+			header_fields.push(MessageHeaderField::Member(member.clone()));
+			header_fields.push(MessageHeaderField::Path(path.clone()));
 		},
 
 		MessageType::MethodReturn { reply_serial } => {
-			header.fields.push(MessageHeaderField::ReplySerial(*reply_serial));
+			header_fields.push(MessageHeaderField::ReplySerial(*reply_serial));
 		},
 
 		MessageType::Signal { interface, member, path } => {
-			header.fields.push(MessageHeaderField::Interface(interface.clone()));
-			header.fields.push(MessageHeaderField::Member(member.clone()));
-			header.fields.push(MessageHeaderField::Path(path.clone()));
+			header_fields.push(MessageHeaderField::Interface(interface.clone()));
+			header_fields.push(MessageHeaderField::Member(member.clone()));
+			header_fields.push(MessageHeaderField::Path(path.clone()));
 		},
 	}
 
@@ -193,7 +195,7 @@ pub(crate) fn serialize_message(
 	if let Some((body_serialized, body_len, body_signature)) = body {
 		header.body_len = body_len;
 
-		header.fields.push(MessageHeaderField::Signature(body_signature));
+		header_fields.push(MessageHeaderField::Signature(body_signature));
 
 		let mut message_serializer = crate::ser::Serializer::new(buf);
 		header.serialize(&mut message_serializer)?;
@@ -210,12 +212,12 @@ pub(crate) fn serialize_message(
 	Ok(())
 }
 
-impl<'de> serde::Deserialize<'de> for MessageHeader {
+impl<'de> serde::Deserialize<'de> for MessageHeader<'static> {
 	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
 		struct Visitor;
 
 		impl<'de> serde::de::Visitor<'de> for Visitor {
-			type Value = MessageHeader;
+			type Value = MessageHeader<'static>;
 
 			fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 				formatter.write_str("message header")
@@ -227,7 +229,7 @@ impl<'de> serde::Deserialize<'de> for MessageHeader {
 					return Err(serde::de::Error::invalid_value(serde::de::Unexpected::Unsigned(endianness.into()), &"'l'"));
 				}
 
-				let r#type: MessageType = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("type"))?;
+				let r#type: MessageType<'static> = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("type"))?;
 
 				let flags: MessageFlags = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("flags"))?;
 
@@ -241,14 +243,14 @@ impl<'de> serde::Deserialize<'de> for MessageHeader {
 
 				let serial: u32 = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("serial"))?;
 
-				let fields: Vec<MessageHeaderField> = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("fields"))?;
+				let fields: Vec<MessageHeaderField<'static>> = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("fields"))?;
 
 				Ok(MessageHeader {
 					r#type,
 					flags,
 					body_len,
 					serial,
-					fields,
+					fields: fields.into(),
 				})
 			}
 		}
@@ -257,7 +259,7 @@ impl<'de> serde::Deserialize<'de> for MessageHeader {
 	}
 }
 
-impl serde::Serialize for MessageHeader {
+impl serde::Serialize for MessageHeader<'_> {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
 		use serde::ser::SerializeTuple;
 
@@ -283,15 +285,15 @@ impl serde::Serialize for MessageHeader {
 
 /// Message type.
 #[derive(Clone, Debug)]
-pub enum MessageType {
+pub enum MessageType<'a> {
 	Error {
-		name: String,
+		name: std::borrow::Cow<'a, str>,
 		reply_serial: u32,
 	},
 
 	MethodCall {
-		member: String,
-		path: crate::types::ObjectPath,
+		member: std::borrow::Cow<'a, str>,
+		path: crate::types::ObjectPath<'a>,
 	},
 
 	MethodReturn {
@@ -299,18 +301,18 @@ pub enum MessageType {
 	},
 
 	Signal {
-		interface: String,
-		member: String,
-		path: crate::types::ObjectPath,
+		interface: std::borrow::Cow<'a, str>,
+		member: std::borrow::Cow<'a, str>,
+		path: crate::types::ObjectPath<'a>,
 	},
 }
 
-impl<'de> serde::Deserialize<'de> for MessageType {
+impl<'de> serde::Deserialize<'de> for MessageType<'static> {
 	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
 		struct Visitor;
 
 		impl<'de> serde::de::Visitor<'de> for Visitor {
-			type Value = MessageType;
+			type Value = MessageType<'static>;
 
 			fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 				formatter.write_str("message type")
@@ -343,7 +345,7 @@ impl<'de> serde::Deserialize<'de> for MessageType {
 	}
 }
 
-impl serde::Serialize for MessageType {
+impl serde::Serialize for MessageType<'_> {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
 		let r#type: u8 = match self {
 			MessageType::Error { .. } => 0x03,
@@ -404,20 +406,20 @@ pub mod flags {
 
 /// A message header field.
 #[derive(Clone, Debug)]
-pub enum MessageHeaderField {
-	Destination(String),
+pub enum MessageHeaderField<'a> {
+	Destination(std::borrow::Cow<'a, str>),
 
-	ErrorName(String),
+	ErrorName(std::borrow::Cow<'a, str>),
 
-	Interface(String),
+	Interface(std::borrow::Cow<'a, str>),
 
-	Member(String),
+	Member(std::borrow::Cow<'a, str>),
 
-	Path(crate::types::ObjectPath),
+	Path(crate::types::ObjectPath<'a>),
 
 	ReplySerial(u32),
 
-	Sender(String),
+	Sender(std::borrow::Cow<'a, str>),
 
 	Signature(crate::types::Signature),
 
@@ -425,16 +427,16 @@ pub enum MessageHeaderField {
 
 	Unknown {
 		code: u8,
-		value: crate::types::Variant,
+		value: crate::types::Variant<'a>,
 	},
 }
 
-impl<'de> serde::Deserialize<'de> for MessageHeaderField {
+impl<'de> serde::Deserialize<'de> for MessageHeaderField<'static> {
 	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
 		struct Visitor;
 
 		impl<'de> serde::de::Visitor<'de> for Visitor {
-			type Value = MessageHeaderField;
+			type Value = MessageHeaderField<'static>;
 
 			fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 				formatter.write_str("message header field")
@@ -451,7 +453,7 @@ impl<'de> serde::Deserialize<'de> for MessageHeaderField {
 				let seed =
 					crate::types::VariantDeserializeSeed::new(&signature)
 					.map_err(|()| serde::de::Error::custom(format!("message has malformed signature {:?}", signature)))?;
-				let value: crate::types::Variant = map.next_value_seed(seed)?;
+				let value: crate::types::Variant<'static> = map.next_value_seed(seed)?;
 
 				#[allow(clippy::match_same_arms)]
 				match (code, value) {
@@ -521,7 +523,7 @@ impl<'de> serde::Deserialize<'de> for MessageHeaderField {
 	}
 }
 
-impl serde::Serialize for MessageHeaderField {
+impl serde::Serialize for MessageHeaderField<'_> {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
 		use serde::ser::SerializeStruct;
 

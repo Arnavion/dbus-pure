@@ -3,14 +3,20 @@
 /// Note that `Variant` does not impl `serde::Deserialize` since it needs to know the signature to be able to deserialize itself.
 /// Instead, use [`VariantDeserializeSeed`] to deserialize a `Variant`.
 #[derive(Clone, Debug, PartialEq)]
-pub enum Variant {
-	Array { element_signature: crate::types::Signature, elements: Vec<Variant> },
+pub enum Variant<'a> {
+	Array {
+		element_signature: crate::types::Signature,
+		elements: crate::std2::CowSlice<'a, Variant<'a>>,
+	},
 
 	Bool(bool),
 
 	Byte(u8),
 
-	DictEntry { key: Box<Variant>, value: Box<Variant> },
+	DictEntry {
+		key: crate::std2::CowRef<'a, Variant<'a>>,
+		value: crate::std2::CowRef<'a, Variant<'a>>,
+	},
 
 	Double(f64),
 
@@ -20,19 +26,23 @@ pub enum Variant {
 
 	I64(i64),
 
-	ObjectPath(crate::types::ObjectPath),
+	ObjectPath(crate::types::ObjectPath<'a>),
 
 	Signature(crate::types::Signature),
 
-	String(String),
+	String(std::borrow::Cow<'a, str>),
 
-	Struct { fields: Vec<Variant> },
+	Struct {
+		fields: crate::std2::CowSlice<'a, Variant<'a>>,
+	},
 
 	/// A sequence of signatures.
 	///
 	/// A message body with one or more parameters is of this type. For example, if a method takes two parameters of type string and byte,
-	/// the body should be a `Variant::Tuple { elements: vec![Variant::String(...), Variant::Byte(...)] }`
-	Tuple { elements: Vec<Variant> },
+	/// the body should be a `Variant::Tuple { elements: (&[Variant::String(...), Variant::Byte(...)][..]).into() }`
+	Tuple {
+		elements: crate::std2::CowSlice<'a, Variant<'a>>,
+	},
 
 	U16(u16),
 
@@ -40,31 +50,55 @@ pub enum Variant {
 
 	U64(u64),
 
-	Variant(Box<Variant>),
+	Variant(crate::std2::CowRef<'a, Variant<'a>>),
 }
 
-impl Variant {
-	/// Convenience function to convert this `Variant` into a `Vec` of elements if it is is an array of the given signature,
+impl<'a> Variant<'a> {
+	/// Convenience function to view this `Variant` as a `&[Variant]` if it's an array and its elements have the given signature.
+	pub fn as_array<'b>(&'b self, expected_element_signature: &crate::types::Signature) -> Option<&'b [Variant<'a>]> {
+		match self {
+			Variant::Array { element_signature, elements } if element_signature == expected_element_signature => Some(elements),
+			_ => None,
+		}
+	}
+
+	/// Convenience function to convert this `Variant` into a `CowSlice<'_, Variant>` if it an array and its elements have the given signature,
 	/// else return the original `Variant`.
-	pub fn into_array(self, expected_element_signature: &crate::types::Signature) -> Result<Vec<Variant>, Self> {
+	pub fn into_array(self, expected_element_signature: &crate::types::Signature) -> Result<crate::std2::CowSlice<'a, Variant<'a>>, Self> {
 		match self {
 			Variant::Array { element_signature, elements } if element_signature == *expected_element_signature => Ok(elements),
 			other => Err(other),
 		}
 	}
 
+	/// Convenience function to view this `Variant` as a `&str` if it's a string.
+	pub fn as_string(&self) -> Option<&str> {
+		match self {
+			Variant::String(value) => Some(value),
+			_ => None,
+		}
+	}
+
 	/// Convenience function to convert this `Variant` into a `String` if it is one, else return the original `Variant`.
-	pub fn into_string(self) -> Result<String, Self> {
+	pub fn into_string(self) -> Result<std::borrow::Cow<'a, str>, Self> {
 		match self {
 			Variant::String(value) => Ok(value),
 			other => Err(other),
 		}
 	}
 
-	/// Convenience function to convert this `Variant` into an inner `Variant` if it has one, else return the original `Variant`.
-	pub fn into_variant(self) -> Result<Variant, Self> {
+	/// Convenience function to view this `Variant` as its inner `Variant` if it has one.
+	pub fn as_variant<'b>(&'b self) -> Option<&'b Variant<'a>> {
 		match self {
-			Variant::Variant(value) => Ok(*value),
+			Variant::Variant(value) => Some(value),
+			_ => None,
+		}
+	}
+
+	/// Convenience function to convert this `Variant` into an inner `Variant` if it has one, else return the original `Variant`.
+	pub fn into_variant(self) -> Result<crate::std2::CowRef<'a, Variant<'a>>, Self> {
+		match self {
+			Variant::Variant(value) => Ok(value),
 			other => Err(other),
 		}
 	}
@@ -128,7 +162,7 @@ impl Variant {
 	}
 }
 
-impl serde::Serialize for Variant {
+impl serde::Serialize for Variant<'_> {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
 		use serde::ser::{SerializeStruct, SerializeTuple};
 
@@ -144,8 +178,8 @@ impl serde::Serialize for Variant {
 
 			Variant::DictEntry { key, value } => {
 				let mut serializer = serializer.serialize_struct("", 2)?;
-				serializer.serialize_field("key", key)?;
-				serializer.serialize_field("value", value)?;
+				serializer.serialize_field("key", &**key)?;
+				serializer.serialize_field("value", &**value)?;
 				serializer.end()
 			},
 
@@ -172,7 +206,7 @@ impl serde::Serialize for Variant {
 
 			Variant::Struct { fields } => {
 				let mut serializer = serializer.serialize_struct("", fields.len())?;
-				for field in fields {
+				for field in &**fields {
 					serializer.serialize_field("", field)?;
 				}
 				serializer.end()
@@ -180,7 +214,7 @@ impl serde::Serialize for Variant {
 
 			Variant::Tuple { elements } => {
 				let mut serializer = serializer.serialize_tuple(elements.len())?;
-				for element in elements {
+				for element in &**elements {
 					serializer.serialize_element(element)?;
 				}
 				serializer.end()
@@ -199,7 +233,7 @@ impl serde::Serialize for Variant {
 				let mut serializer = serializer.serialize_tuple(2)?;
 				let signature = value.inner_signature();
 				serializer.serialize_element(&signature)?;
-				serializer.serialize_element(value)?;
+				serializer.serialize_element(&**value)?;
 				serializer.end()
 			},
 		}
@@ -208,23 +242,23 @@ impl serde::Serialize for Variant {
 
 /// Used to deserialize a [`Variant`] using its [`serde::de::DeserializeSeed`] impl.
 #[derive(Debug)]
-pub struct VariantDeserializeSeed<'a>(&'a crate::types::Signature);
+pub struct VariantDeserializeSeed<'input, 'output>(&'input crate::types::Signature, std::marker::PhantomData<fn() -> Variant<'output>>);
 
-impl<'a> VariantDeserializeSeed<'a> {
+impl<'input, 'output> VariantDeserializeSeed<'input, 'output> {
 	/// Construct a `VariantDeserializeSeed` that will deserialize a [`Variant`] of the given signature.
-	pub fn new(signature: &'a crate::types::Signature) -> Result<Self, ()> {
-		Ok(VariantDeserializeSeed(signature))
+	pub fn new(signature: &'input crate::types::Signature) -> Result<Self, ()> {
+		Ok(VariantDeserializeSeed(signature, Default::default()))
 	}
 }
 
-impl<'de, 'a> serde::de::DeserializeSeed<'de> for VariantDeserializeSeed<'a> {
-	type Value = Variant;
+impl<'de, 'input, 'output> serde::de::DeserializeSeed<'de> for VariantDeserializeSeed<'input, 'output> {
+	type Value = Variant<'output>;
 
 	fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error> where D: serde::Deserializer<'de> {
-		struct Visitor<'a>(&'a crate::types::Signature);
+		struct Visitor<'input, 'output>(&'input crate::types::Signature, std::marker::PhantomData<fn() -> Variant<'output>>);
 
-		impl<'de, 'a> serde::de::Visitor<'de> for Visitor<'a> {
-			type Value = Variant;
+		impl<'de, 'input, 'output> serde::de::Visitor<'de> for Visitor<'input, 'output> {
+			type Value = Variant<'output>;
 
 			fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 				formatter.write_str("variant")
@@ -233,10 +267,9 @@ impl<'de, 'a> serde::de::DeserializeSeed<'de> for VariantDeserializeSeed<'a> {
 			fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error> where A: serde::de::SeqAccess<'de> {
 				match self.0 {
 					crate::types::Signature::Array { element } => {
-						let element_seed = ArrayDeserializeSeed(&element);
-						let elements: Vec<Variant> = seq.next_element_seed(element_seed)?.ok_or_else(|| serde::de::Error::missing_field("value"))?;
-
-						Ok(Variant::Array { element_signature: *element.clone(), elements })
+						let element_seed = ArrayDeserializeSeed(&element, self.1);
+						let value = seq.next_element_seed(element_seed)?.ok_or_else(|| serde::de::Error::missing_field("value"))?;
+						Ok(value)
 					},
 
 					crate::types::Signature::Bool => {
@@ -252,13 +285,13 @@ impl<'de, 'a> serde::de::DeserializeSeed<'de> for VariantDeserializeSeed<'a> {
 					crate::types::Signature::DictEntry { key, value } => {
 						let () = seq.next_element_seed(StructDeserializeSeed)?.expect("cannot fail");
 
-						let seed = VariantDeserializeSeed(key);
+						let seed = VariantDeserializeSeed(key, self.1);
 						let key = seq.next_element_seed(seed)?.ok_or_else(|| serde::de::Error::missing_field("value"))?;
 
-						let seed = VariantDeserializeSeed(value);
+						let seed = VariantDeserializeSeed(value, self.1);
 						let value = seq.next_element_seed(seed)?.ok_or_else(|| serde::de::Error::missing_field("value"))?;
 
-						Ok(Variant::DictEntry { key: Box::new(key), value: Box::new(value) })
+						Ok(Variant::DictEntry { key: Box::new(key).into(), value: Box::new(value).into() })
 					},
 
 					crate::types::Signature::Double => {
@@ -302,26 +335,26 @@ impl<'de, 'a> serde::de::DeserializeSeed<'de> for VariantDeserializeSeed<'a> {
 						let fields: Result<Vec<_>, _> =
 							fields.iter()
 							.map(|field| {
-								let seed = VariantDeserializeSeed(field);
+								let seed = VariantDeserializeSeed(field, self.1);
 								let field = seq.next_element_seed(seed)?.ok_or_else(|| serde::de::Error::missing_field("value"))?;
 								Ok(field)
 							})
 							.collect();
 						let fields = fields?;
-						Ok(Variant::Struct { fields })
+						Ok(Variant::Struct { fields: fields.into() })
 					},
 
 					crate::types::Signature::Tuple { elements } => {
 						let elements: Result<Vec<_>, _> =
 							elements.iter()
 							.map(|element| {
-								let seed = VariantDeserializeSeed(element);
+								let seed = VariantDeserializeSeed(element, self.1);
 								let element = seq.next_element_seed(seed)?.ok_or_else(|| serde::de::Error::missing_field("value"))?;
 								Ok(element)
 							})
 							.collect();
 						let elements = elements?;
-						Ok(Variant::Tuple { elements })
+						Ok(Variant::Tuple { elements: elements.into() })
 					},
 
 					crate::types::Signature::U16 => {
@@ -341,41 +374,39 @@ impl<'de, 'a> serde::de::DeserializeSeed<'de> for VariantDeserializeSeed<'a> {
 
 					crate::types::Signature::Variant => {
 						let signature: crate::types::Signature = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("value"))?;
-						let seed =
-							VariantDeserializeSeed::new(&signature)
-							.map_err(|()| serde::de::Error::custom(format!("variant has malformed signature {:?}", signature)))?;
-						let value: Variant = seq.next_element_seed(seed)?.ok_or_else(|| serde::de::Error::missing_field("value"))?;
-						Ok(Variant::Variant(Box::new(value)))
+						let seed = VariantDeserializeSeed(&signature, self.1);
+						let value: Variant<'output> = seq.next_element_seed(seed)?.ok_or_else(|| serde::de::Error::missing_field("value"))?;
+						Ok(Variant::Variant(Box::new(value).into()))
 					},
 				}
 			}
 		}
 
-		struct ArrayDeserializeSeed<'a>(&'a crate::types::Signature);
+		struct ArrayDeserializeSeed<'input, 'output>(&'input crate::types::Signature, std::marker::PhantomData<fn() -> Variant<'output>>);
 
-		impl<'de, 'a> serde::de::DeserializeSeed<'de> for ArrayDeserializeSeed<'a> {
-			type Value = Vec<Variant>;
+		impl<'de, 'input, 'output> serde::de::DeserializeSeed<'de> for ArrayDeserializeSeed<'input, 'output> {
+			type Value = Variant<'output>;
 
 			fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error> where D: serde::Deserializer<'de> {
-				struct Visitor<'a>(&'a crate::types::Signature, Vec<Variant>);
+				struct Visitor<'input, 'output>(&'input crate::types::Signature, std::marker::PhantomData<fn() -> Variant<'output>>);
 
-				impl<'de, 'a> serde::de::Visitor<'de> for Visitor<'a> {
-					type Value = Vec<Variant>;
+				impl<'de, 'input, 'output> serde::de::Visitor<'de> for Visitor<'input, 'output> {
+					type Value = Variant<'output>;
 
 					fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 						write!(formatter, "Array({:?})", self.0)
 					}
 
-					fn visit_seq<A>(mut self, mut seq: A) -> Result<Self::Value, A::Error> where A: serde::de::SeqAccess<'de> {
-						while let Some(element) = seq.next_element_seed(VariantDeserializeSeed(self.0))? {
-							self.1.push(element);
+					fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error> where A: serde::de::SeqAccess<'de> {
+						let mut elements = vec![];
+						while let Some(element) = seq.next_element_seed(VariantDeserializeSeed(self.0, self.1))? {
+							elements.push(element);
 						}
-
-						Ok(self.1)
+						Ok(Variant::Array { element_signature: self.0.clone(), elements: elements.into() })
 					}
 				}
 
-				deserializer.deserialize_seq(Visitor(self.0, vec![]))
+				deserializer.deserialize_seq(Visitor(self.0, self.1))
 			}
 		}
 
@@ -404,7 +435,7 @@ impl<'de, 'a> serde::de::DeserializeSeed<'de> for VariantDeserializeSeed<'a> {
 			}
 		}
 
-		deserializer.deserialize_tuple(0, Visitor(&*self.0))
+		deserializer.deserialize_tuple(0, Visitor(&*self.0, self.1))
 	}
 }
 
@@ -415,14 +446,14 @@ mod tests {
 		fn test(
 			signature: &str,
 			expected_serialized: &[u8],
-			expected_variant: super::Variant,
+			expected_variant: super::Variant<'_>,
 		) {
 			let signature: crate::types::Signature = signature.parse().unwrap();
 
 			let deserialize_seed = crate::types::VariantDeserializeSeed::new(&signature).unwrap();
 
 			let mut deserializer = crate::de::Deserializer::new(expected_serialized, 0);
-			let actual_variant: super::Variant = serde::de::DeserializeSeed::deserialize(deserialize_seed, &mut deserializer).unwrap();
+			let actual_variant: super::Variant<'_> = serde::de::DeserializeSeed::deserialize(deserialize_seed, &mut deserializer).unwrap();
 			assert_eq!(expected_variant, actual_variant);
 
 			let mut actual_serialized = vec![];
@@ -440,10 +471,10 @@ mod tests {
 			",
 			super::Variant::Array {
 				element_signature: crate::types::Signature::U32,
-				elements: vec![
+				elements: (&[
 					super::Variant::U32(0x01020304),
 					super::Variant::U32(0x05060708),
-				],
+				][..]).into(),
 			},
 		);
 
@@ -457,16 +488,16 @@ mod tests {
 				\x08\x07\x06\x05\
 			",
 			super::Variant::Tuple {
-				elements: vec![
+				elements: (&[
 					super::Variant::Byte(0x05),
 					super::Variant::Array {
 						element_signature: crate::types::Signature::U32,
-						elements: vec![
+						elements: (&[
 							super::Variant::U32(0x01020304),
 							super::Variant::U32(0x05060708),
-						],
+						][..]).into(),
 					},
-				],
+				][..]).into(),
 			},
 		);
 
@@ -490,10 +521,10 @@ mod tests {
 				\x01\x00\x00\x00\
 			",
 			super::Variant::Tuple {
-				elements: vec![
+				elements: (&[
 					super::Variant::Byte(0x05),
 					super::Variant::Bool(true),
-				],
+				][..]).into(),
 			},
 		);
 
@@ -515,16 +546,16 @@ mod tests {
 					key: Box::new(crate::types::Signature::U16),
 					value: Box::new(crate::types::Signature::String),
 				},
-				elements: vec![
+				elements: (&[
 					super::Variant::DictEntry {
-						key: Box::new(super::Variant::U16(0x0102)),
-						value: Box::new(super::Variant::String("/org/freedesktop/DBus".to_owned())),
+						key: (&super::Variant::U16(0x0102)).into(),
+						value: (&super::Variant::String("/org/freedesktop/DBus".into())).into(),
 					},
 					super::Variant::DictEntry {
-						key: Box::new(super::Variant::U16(0x0304)),
-						value: Box::new(super::Variant::String("org.freedesktop.DBus".to_owned())),
+						key: (&super::Variant::U16(0x0304)).into(),
+						value: (&super::Variant::String("org.freedesktop.DBus".into())).into(),
 					},
-				],
+				][..]).into(),
 			},
 		);
 
@@ -543,25 +574,25 @@ mod tests {
 				\x14\x00\x00\x00org.freedesktop.DBus\0\
 			",
 			super::Variant::Tuple {
-				elements: vec![
+				elements: (&[
 					super::Variant::Byte(0x05),
 					super::Variant::Array {
 						element_signature: crate::types::Signature::DictEntry {
 							key: Box::new(crate::types::Signature::U16),
 							value: Box::new(crate::types::Signature::String),
 						},
-						elements: vec![
+						elements: (&[
 							super::Variant::DictEntry {
-								key: Box::new(super::Variant::U16(0x0102)),
-								value: Box::new(super::Variant::String("/org/freedesktop/DBus".to_owned())),
+								key: (&super::Variant::U16(0x0102)).into(),
+								value: (&super::Variant::String("/org/freedesktop/DBus".into())).into(),
 							},
 							super::Variant::DictEntry {
-								key: Box::new(super::Variant::U16(0x0304)),
-								value: Box::new(super::Variant::String("org.freedesktop.DBus".to_owned())),
+								key: (&super::Variant::U16(0x0304)).into(),
+								value: (&super::Variant::String("org.freedesktop.DBus".into())).into(),
 							},
-						],
+						][..]).into(),
 					},
-				],
+				][..]).into(),
 			},
 		);
 
@@ -579,10 +610,10 @@ mod tests {
 				\x58\x39\xB4\xC8\x76\xBE\xF3\x3F\
 			",
 			super::Variant::Tuple {
-				elements: vec![
+				elements: (&[
 					super::Variant::Byte(0x05),
 					super::Variant::Double(1.234),
-				],
+				][..]).into(),
 			},
 		);
 
@@ -596,12 +627,12 @@ mod tests {
 			"g",
 			b"\x05(aus)\0",
 			super::Variant::Signature(crate::types::Signature::Struct {
-				fields: vec![
+				fields: (&[
 					crate::types::Signature::Array {
 						element: Box::new(crate::types::Signature::U32),
 					},
 					crate::types::Signature::String,
-				],
+				][..]).into(),
 			}),
 		);
 
@@ -625,10 +656,10 @@ mod tests {
 				\x01s\0\
 			",
 			super::Variant::Tuple {
-				elements: vec![
+				elements: (&[
 					super::Variant::Byte(0x05),
 					super::Variant::Signature(crate::types::Signature::String),
-				],
+				][..]).into(),
 			},
 		);
 
@@ -646,10 +677,10 @@ mod tests {
 				\x04\x03\x02\x01\
 			",
 			super::Variant::Tuple {
-				elements: vec![
+				elements: (&[
 					super::Variant::Byte(0x05),
 					super::Variant::I32(0x01020304),
-				],
+				][..]).into(),
 			},
 		);
 
@@ -667,17 +698,17 @@ mod tests {
 				\x02\x01\
 			",
 			super::Variant::Tuple {
-				elements: vec![
+				elements: (&[
 					super::Variant::Byte(0x05),
 					super::Variant::I16(0x0102),
-				],
+				][..]).into(),
 			},
 		);
 
 		test(
 			"o",
 			b"\x15\x00\x00\x00/org/freedesktop/DBus\0",
-			super::Variant::ObjectPath(crate::types::ObjectPath("/org/freedesktop/DBus".to_owned())),
+			super::Variant::ObjectPath(crate::types::ObjectPath("/org/freedesktop/DBus".into())),
 		);
 
 		test(
@@ -688,10 +719,10 @@ mod tests {
 				\x15\x00\x00\x00/org/freedesktop/DBus\0\
 			",
 			super::Variant::Tuple {
-				elements: vec![
+				elements: (&[
 					super::Variant::Byte(0x05),
-					super::Variant::ObjectPath(crate::types::ObjectPath("/org/freedesktop/DBus".to_owned())),
-				],
+					super::Variant::ObjectPath(crate::types::ObjectPath("/org/freedesktop/DBus".into())),
+				][..]).into(),
 			},
 		);
 
@@ -709,23 +740,23 @@ mod tests {
 				\x02\x01\
 			",
 			super::Variant::Tuple {
-				elements: vec![
+				elements: (&[
 					super::Variant::Byte(0x05),
 					super::Variant::U16(0x0102),
-				],
+				][..]).into(),
 			},
 		);
 
 		test(
 			"s",
 			b"\x00\x00\x00\x00\0",
-			super::Variant::String(String::new()),
+			super::Variant::String("".into()),
 		);
 
 		test(
 			"s",
 			b"\x14\x00\x00\x00org.freedesktop.DBus\0",
-			super::Variant::String("org.freedesktop.DBus".to_owned()),
+			super::Variant::String("org.freedesktop.DBus".into()),
 		);
 
 		test(
@@ -736,10 +767,10 @@ mod tests {
 				\x14\x00\x00\x00org.freedesktop.DBus\0\
 			",
 			super::Variant::Tuple {
-				elements: vec![
+				elements: (&[
 					super::Variant::Byte(0x05),
-					super::Variant::String("org.freedesktop.DBus".to_owned()),
-				],
+					super::Variant::String("org.freedesktop.DBus".into()),
+				][..]).into(),
 			},
 		);
 
@@ -757,10 +788,10 @@ mod tests {
 				\x08\x07\x06\x05\x04\x03\x02\x01\
 			",
 			super::Variant::Tuple {
-				elements: vec![
+				elements: (&[
 					super::Variant::Byte(0x05),
 					super::Variant::U64(0x01020304_05060708),
-				],
+				][..]).into(),
 			},
 		);
 
@@ -778,19 +809,19 @@ mod tests {
 				\x04\x03\x02\x01\
 			",
 			super::Variant::Tuple {
-				elements: vec![
+				elements: (&[
 					super::Variant::Byte(0x05),
 					super::Variant::U32(0x01020304),
-				],
+				][..]).into(),
 			},
 		);
 
 		test(
 			"v",
 			b"\x01s\0\x00\x14\x00\x00\x00org.freedesktop.DBus\0",
-			super::Variant::Variant(Box::new(
-				super::Variant::String("org.freedesktop.DBus".to_owned())
-			)),
+			super::Variant::Variant((&
+				super::Variant::String("org.freedesktop.DBus".into())
+			).into()),
 		);
 
 		test(
@@ -800,12 +831,12 @@ mod tests {
 				\x01s\0\x14\x00\x00\x00org.freedesktop.DBus\0\
 			",
 			super::Variant::Tuple {
-				elements: vec![
+				elements: (&[
 					super::Variant::Byte(0x05),
-					super::Variant::Variant(Box::new(
-						super::Variant::String("org.freedesktop.DBus".to_owned())
-					)),
-				],
+					super::Variant::Variant((&
+						super::Variant::String("org.freedesktop.DBus".into())
+					).into()),
+				][..]).into(),
 			},
 		);
 
@@ -823,10 +854,10 @@ mod tests {
 				\x08\x07\x06\x05\x04\x03\x02\x01\
 			",
 			super::Variant::Tuple {
-				elements: vec![
+				elements: (&[
 					super::Variant::Byte(0x05),
 					super::Variant::I64(0x01020304_05060708),
-				],
+				][..]).into(),
 			},
 		);
 
@@ -843,10 +874,10 @@ mod tests {
 				\x01\
 			",
 			super::Variant::Tuple {
-				elements: vec![
+				elements: (&[
 					super::Variant::Byte(0x05),
 					super::Variant::Byte(0x01),
-				],
+				][..]).into(),
 			},
 		);
 
@@ -859,11 +890,11 @@ mod tests {
 				\x14\x00\x00\x00org.freedesktop.DBus\0\
 			",
 			super::Variant::Struct {
-				fields: vec![
+				fields: (&[
 					super::Variant::U32(0x01020304),
-					super::Variant::ObjectPath(crate::types::ObjectPath("/org/freedesktop/DBus".to_owned())),
-					super::Variant::String("org.freedesktop.DBus".to_owned()),
-				],
+					super::Variant::ObjectPath(crate::types::ObjectPath("/org/freedesktop/DBus".into())),
+					super::Variant::String("org.freedesktop.DBus".into()),
+				][..]).into(),
 			},
 		);
 
@@ -882,19 +913,19 @@ mod tests {
 				\x14\x00\x00\x00org.freedesktop.DBus\0\
 			",
 			super::Variant::Struct {
-				fields: vec![
+				fields: (&[
 					super::Variant::U32(0x01020304),
 					super::Variant::U32(0x05060708),
-					super::Variant::ObjectPath(crate::types::ObjectPath("/org/freedesktop/DBus".to_owned())),
+					super::Variant::ObjectPath(crate::types::ObjectPath("/org/freedesktop/DBus".into())),
 					super::Variant::Struct {
-						fields: vec![
-							super::Variant::String("org.freedesktop.DBus".to_owned()),
-							super::Variant::ObjectPath(crate::types::ObjectPath("/org/freedesktop/DBus".to_owned())),
+						fields: (&[
+							super::Variant::String("org.freedesktop.DBus".into()),
+							super::Variant::ObjectPath(crate::types::ObjectPath("/org/freedesktop/DBus".into())),
 							super::Variant::U32(0x01020304),
-						],
+						][..]).into(),
 					},
-					super::Variant::String("org.freedesktop.DBus".to_owned()),
-				],
+					super::Variant::String("org.freedesktop.DBus".into()),
+				][..]).into(),
 			},
 		);
 
@@ -909,16 +940,16 @@ mod tests {
 				\x14\x00\x00\x00org.freedesktop.DBus\0\
 			",
 			super::Variant::Tuple {
-				elements: vec![
+				elements: (&[
 					super::Variant::Byte(0x05),
 					super::Variant::Struct {
-						fields: vec![
+						fields: (&[
 							super::Variant::U32(0x01020304),
-							super::Variant::ObjectPath(crate::types::ObjectPath("/org/freedesktop/DBus".to_owned())),
-							super::Variant::String("org.freedesktop.DBus".to_owned()),
-						],
+							super::Variant::ObjectPath(crate::types::ObjectPath("/org/freedesktop/DBus".into())),
+							super::Variant::String("org.freedesktop.DBus".into()),
+						][..]).into(),
 					},
-				],
+				][..]).into(),
 			},
 		);
 
@@ -931,11 +962,11 @@ mod tests {
 				\x14\x00\x00\x00org.freedesktop.DBus\0\
 			",
 			super::Variant::Tuple {
-				elements: vec![
+				elements: (&[
 					super::Variant::U32(0x01020304),
-					super::Variant::ObjectPath(crate::types::ObjectPath("/org/freedesktop/DBus".to_owned())),
-					super::Variant::String("org.freedesktop.DBus".to_owned()),
-				],
+					super::Variant::ObjectPath(crate::types::ObjectPath("/org/freedesktop/DBus".into())),
+					super::Variant::String("org.freedesktop.DBus".into()),
+				][..]).into(),
 			},
 		);
 	}
