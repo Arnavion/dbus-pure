@@ -45,13 +45,10 @@
 //!         None,
 //!     )?
 //!     .ok_or(None)
-//!     .and_then(|body| body.into_array(&dbus_pure::types::Signature::String).map_err(Some))
-//!     .map_err(|body| format!("ListNames response failed with {:#?}", body))?
-//!     .into_owned()
-//!     .into_iter()
-//!     .map(|element| element.into_string().unwrap());
+//!     .and_then(|body| body.into_array_string().map_err(Some))
+//!     .map_err(|body| format!("ListNames response failed with {:#?}", body))?;
 //!
-//! for name in names {
+//! for name in names.into_iter() {
 //!     println!("{}", name);
 //! }
 //! #

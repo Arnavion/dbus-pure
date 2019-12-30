@@ -19,14 +19,11 @@ fn main() -> Result<(), Error> {
 			None,
 		)?
 		.ok_or(None)
-		.and_then(|body| body.into_array(&dbus_pure::types::Signature::String).map_err(Some))
+		.and_then(|body| body.into_array_string().map_err(Some))
 		.map_err(|body| format!("ListNames response failed with {:#?}", body))?;
-	let names =
-		names.iter()
-		.map(|element| element.as_string().unwrap());
 
 	// MPRIS media players have names that start with "org.mpris.MediaPlayer2."
-	let media_player_names = names.filter(|object_name| object_name.starts_with("org.mpris.MediaPlayer2."));
+	let media_player_names = names.iter().filter(|object_name| object_name.starts_with("org.mpris.MediaPlayer2."));
 
 	for media_player_name in media_player_names {
 		println!("Found media player {}", media_player_name);

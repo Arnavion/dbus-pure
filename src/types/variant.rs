@@ -4,10 +4,44 @@
 /// Instead, use [`VariantDeserializeSeed`] to deserialize a `Variant`.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Variant<'a> {
+	/// An array of variants. All variants must have the same signature as `element_signature`.
+	///
+	/// Simpler arrays will be deserialized as the other `Array*` variants.
+	/// For example, byte arrays (`ay`) will always be deserialized as `ArrayByte`.
 	Array {
 		element_signature: crate::types::Signature,
 		elements: crate::std2::CowSlice<'a, Variant<'a>>,
 	},
+
+	/// Simpler wrapper over a bool array (`ab`) than the generic `Array` variant.
+	ArrayBool(std::borrow::Cow<'a, [bool]>),
+
+	/// Simpler wrapper over a byte array (`ay`) than the generic `Array` variant.
+	ArrayByte(std::borrow::Cow<'a, [u8]>),
+
+	/// Simpler wrapper over a double array (`ad`) than the generic `Array` variant.
+	ArrayDouble(std::borrow::Cow<'a, [f64]>),
+
+	/// Simpler wrapper over an i16 array (`an`) than the generic `Array` variant.
+	ArrayI16(std::borrow::Cow<'a, [i16]>),
+
+	/// Simpler wrapper over an i32 array (`ai`) than the generic `Array` variant.
+	ArrayI32(std::borrow::Cow<'a, [i32]>),
+
+	/// Simpler wrapper over an i64 array (`ax`) than the generic `Array` variant.
+	ArrayI64(std::borrow::Cow<'a, [i64]>),
+
+	/// Simpler wrapper over a string array (`as`) than the generic `Array` variant.
+	ArrayString(std::borrow::Cow<'a, [std::borrow::Cow<'a, str>]>),
+
+	/// Simpler wrapper over a u16 array (`aq`) than the generic `Array` variant.
+	ArrayU16(std::borrow::Cow<'a, [u16]>),
+
+	/// Simpler wrapper over a u32 array (`au`) than the generic `Array` variant.
+	ArrayU32(std::borrow::Cow<'a, [u32]>),
+
+	/// Simpler wrapper over a u64 array (`at`) than the generic `Array` variant.
+	ArrayU64(std::borrow::Cow<'a, [u64]>),
 
 	Bool(bool),
 
@@ -71,6 +105,23 @@ impl<'a> Variant<'a> {
 		}
 	}
 
+	/// Convenience function to view this `Variant` as a `&[Cow<'_, str>]` if it's an array of strings.
+	pub fn as_array_string<'b>(&'b self) -> Option<&'b [std::borrow::Cow<'a, str>]> {
+		match self {
+			Variant::ArrayString(elements) => Some(elements),
+			_ => None,
+		}
+	}
+
+	/// Convenience function to convert this `Variant` into a `CowSlice<'_, Cow<'_, str>>` if it's an array of strings,
+	/// else return the original `Variant.
+	pub fn into_array_string(self) -> Result<std::borrow::Cow<'a, [std::borrow::Cow<'a, str>]>, Self> {
+		match self {
+			Variant::ArrayString(elements) => Ok(elements),
+			other => Err(other),
+		}
+	}
+
 	/// Convenience function to view this `Variant` as a `&str` if it's a string.
 	pub fn as_string(&self) -> Option<&str> {
 		match self {
@@ -107,6 +158,36 @@ impl<'a> Variant<'a> {
 		match self {
 			Variant::Array { element_signature, elements: _ } =>
 				crate::types::Signature::Array { element: Box::new(element_signature.clone()) },
+
+			Variant::ArrayBool(_) =>
+				crate::types::Signature::Array { element: Box::new(crate::types::Signature::Bool) },
+
+			Variant::ArrayByte(_) =>
+				crate::types::Signature::Array { element: Box::new(crate::types::Signature::Byte) },
+
+			Variant::ArrayDouble(_) =>
+				crate::types::Signature::Array { element: Box::new(crate::types::Signature::Double) },
+
+			Variant::ArrayI16(_) =>
+				crate::types::Signature::Array { element: Box::new(crate::types::Signature::I16) },
+
+			Variant::ArrayI32(_) =>
+				crate::types::Signature::Array { element: Box::new(crate::types::Signature::I32) },
+
+			Variant::ArrayI64(_) =>
+				crate::types::Signature::Array { element: Box::new(crate::types::Signature::I64) },
+
+			Variant::ArrayString(_) =>
+				crate::types::Signature::Array { element: Box::new(crate::types::Signature::String) },
+
+			Variant::ArrayU16(_) =>
+				crate::types::Signature::Array { element: Box::new(crate::types::Signature::U16) },
+
+			Variant::ArrayU32(_) =>
+				crate::types::Signature::Array { element: Box::new(crate::types::Signature::U32) },
+
+			Variant::ArrayU64(_) =>
+				crate::types::Signature::Array { element: Box::new(crate::types::Signature::U64) },
 
 			Variant::Bool(_) =>
 				crate::types::Signature::Bool,
@@ -168,6 +249,36 @@ impl serde::Serialize for Variant<'_> {
 
 		match self {
 			Variant::Array { element_signature: _, elements } =>
+				elements.serialize(serializer),
+
+			Variant::ArrayBool(elements) =>
+				elements.serialize(serializer),
+
+			Variant::ArrayByte(elements) =>
+				elements.serialize(serializer),
+
+			Variant::ArrayDouble(elements) =>
+				elements.serialize(serializer),
+
+			Variant::ArrayI16(elements) =>
+				elements.serialize(serializer),
+
+			Variant::ArrayI32(elements) =>
+				elements.serialize(serializer),
+
+			Variant::ArrayI64(elements) =>
+				elements.serialize(serializer),
+
+			Variant::ArrayString(elements) =>
+				elements.serialize(serializer),
+
+			Variant::ArrayU16(elements) =>
+				elements.serialize(serializer),
+
+			Variant::ArrayU32(elements) =>
+				elements.serialize(serializer),
+
+			Variant::ArrayU64(elements) =>
 				elements.serialize(serializer),
 
 			Variant::Bool(value) =>
@@ -267,7 +378,7 @@ impl<'de, 'input, 'output> serde::de::DeserializeSeed<'de> for VariantDeserializ
 			fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error> where A: serde::de::SeqAccess<'de> {
 				match self.0 {
 					crate::types::Signature::Array { element } => {
-						let element_seed = ArrayDeserializeSeed(&element, self.1);
+						let element_seed = ArrayDeserializeSeed((&**element).clone(), self.1);
 						let value = seq.next_element_seed(element_seed)?.ok_or_else(|| serde::de::Error::missing_field("value"))?;
 						Ok(value)
 					},
@@ -382,15 +493,15 @@ impl<'de, 'input, 'output> serde::de::DeserializeSeed<'de> for VariantDeserializ
 			}
 		}
 
-		struct ArrayDeserializeSeed<'input, 'output>(&'input crate::types::Signature, std::marker::PhantomData<fn() -> Variant<'output>>);
+		struct ArrayDeserializeSeed<'output>(crate::types::Signature, std::marker::PhantomData<fn() -> Variant<'output>>);
 
-		impl<'de, 'input, 'output> serde::de::DeserializeSeed<'de> for ArrayDeserializeSeed<'input, 'output> {
+		impl<'de, 'output> serde::de::DeserializeSeed<'de> for ArrayDeserializeSeed<'output> {
 			type Value = Variant<'output>;
 
 			fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error> where D: serde::Deserializer<'de> {
-				struct Visitor<'input, 'output>(&'input crate::types::Signature, std::marker::PhantomData<fn() -> Variant<'output>>);
+				struct Visitor<'output>(crate::types::Signature, std::marker::PhantomData<fn() -> Variant<'output>>);
 
-				impl<'de, 'input, 'output> serde::de::Visitor<'de> for Visitor<'input, 'output> {
+				impl<'de, 'output> serde::de::Visitor<'de> for Visitor<'output> {
 					type Value = Variant<'output>;
 
 					fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -398,11 +509,95 @@ impl<'de, 'input, 'output> serde::de::DeserializeSeed<'de> for VariantDeserializ
 					}
 
 					fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error> where A: serde::de::SeqAccess<'de> {
-						let mut elements = vec![];
-						while let Some(element) = seq.next_element_seed(VariantDeserializeSeed(self.0, self.1))? {
-							elements.push(element);
+						match self.0 {
+							crate::types::Signature::Byte => {
+								let mut elements = vec![];
+								while let Some(element) = seq.next_element()? {
+									elements.push(element);
+								}
+								Ok(Variant::ArrayByte(elements.into()))
+							},
+
+							crate::types::Signature::Bool => {
+								let mut elements = vec![];
+								while let Some(element) = seq.next_element()? {
+									elements.push(element);
+								}
+								Ok(Variant::ArrayBool(elements.into()))
+							},
+
+							crate::types::Signature::Double => {
+								let mut elements = vec![];
+								while let Some(element) = seq.next_element()? {
+									elements.push(element);
+								}
+								Ok(Variant::ArrayDouble(elements.into()))
+							},
+
+							crate::types::Signature::I16 => {
+								let mut elements = vec![];
+								while let Some(element) = seq.next_element()? {
+									elements.push(element);
+								}
+								Ok(Variant::ArrayI16(elements.into()))
+							},
+
+							crate::types::Signature::I32 => {
+								let mut elements = vec![];
+								while let Some(element) = seq.next_element()? {
+									elements.push(element);
+								}
+								Ok(Variant::ArrayI32(elements.into()))
+							},
+
+							crate::types::Signature::I64 => {
+								let mut elements = vec![];
+								while let Some(element) = seq.next_element()? {
+									elements.push(element);
+								}
+								Ok(Variant::ArrayI64(elements.into()))
+							},
+
+							crate::types::Signature::String => {
+								let mut elements = vec![];
+								while let Some(element) = seq.next_element()? {
+									elements.push(element);
+								}
+								Ok(Variant::ArrayString(elements.into()))
+							},
+
+							crate::types::Signature::U16 => {
+								let mut elements = vec![];
+								while let Some(element) = seq.next_element()? {
+									elements.push(element);
+								}
+								Ok(Variant::ArrayU16(elements.into()))
+							},
+
+							crate::types::Signature::U32 => {
+								let mut elements = vec![];
+								while let Some(element) = seq.next_element()? {
+									elements.push(element);
+								}
+								Ok(Variant::ArrayU32(elements.into()))
+							},
+
+							crate::types::Signature::U64 => {
+								let mut elements = vec![];
+								while let Some(element) = seq.next_element()? {
+									elements.push(element);
+								}
+								Ok(Variant::ArrayU64(elements.into()))
+							},
+
+							element_signature => {
+								let mut elements = vec![];
+								while let Some(element) = seq.next_element_seed(VariantDeserializeSeed(&element_signature, self.1))? {
+									elements.push(element);
+								}
+								Ok(Variant::Array { element_signature, elements: elements.into() })
+							},
 						}
-						Ok(Variant::Array { element_signature: self.0.clone(), elements: elements.into() })
 					}
 				}
 
@@ -469,13 +664,10 @@ mod tests {
 				\x04\x03\x02\x01\
 				\x08\x07\x06\x05\
 			",
-			super::Variant::Array {
-				element_signature: crate::types::Signature::U32,
-				elements: (&[
-					super::Variant::U32(0x01020304),
-					super::Variant::U32(0x05060708),
-				][..]).into(),
-			},
+			super::Variant::ArrayU32((&[
+				0x01020304_u32,
+				0x05060708_u32,
+			][..]).into()),
 		);
 
 		test(
@@ -490,13 +682,10 @@ mod tests {
 			super::Variant::Tuple {
 				elements: (&[
 					super::Variant::Byte(0x05),
-					super::Variant::Array {
-						element_signature: crate::types::Signature::U32,
-						elements: (&[
-							super::Variant::U32(0x01020304),
-							super::Variant::U32(0x05060708),
-						][..]).into(),
-					},
+					super::Variant::ArrayU32((&[
+						0x01020304_u32,
+						0x05060708_u32,
+					][..]).into()),
 				][..]).into(),
 			},
 		);
