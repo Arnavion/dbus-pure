@@ -7,7 +7,7 @@ pub enum Variant<'a> {
 	/// An array of variants. All variants must have the same signature as `element_signature`.
 	///
 	/// Simpler arrays will be deserialized as the other `Array*` variants.
-	/// For example, byte arrays (`ay`) will always be deserialized as `ArrayByte`.
+	/// For example, byte arrays (`ay`) will always be deserialized as `ArrayU8`.
 	Array {
 		element_signature: crate::types::Signature,
 		elements: crate::std2::CowSlice<'a, Variant<'a>>,
@@ -15,9 +15,6 @@ pub enum Variant<'a> {
 
 	/// Simpler wrapper over a bool array (`ab`) than the generic `Array` variant.
 	ArrayBool(std::borrow::Cow<'a, [bool]>),
-
-	/// Simpler wrapper over a byte array (`ay`) than the generic `Array` variant.
-	ArrayByte(std::borrow::Cow<'a, [u8]>),
 
 	/// Simpler wrapper over a double array (`ad`) than the generic `Array` variant.
 	ArrayDouble(std::borrow::Cow<'a, [f64]>),
@@ -34,6 +31,9 @@ pub enum Variant<'a> {
 	/// Simpler wrapper over a string array (`as`) than the generic `Array` variant.
 	ArrayString(std::borrow::Cow<'a, [std::borrow::Cow<'a, str>]>),
 
+	/// Simpler wrapper over a u8 array (`ay`) than the generic `Array` variant.
+	ArrayU8(std::borrow::Cow<'a, [u8]>),
+
 	/// Simpler wrapper over a u16 array (`aq`) than the generic `Array` variant.
 	ArrayU16(std::borrow::Cow<'a, [u16]>),
 
@@ -44,8 +44,6 @@ pub enum Variant<'a> {
 	ArrayU64(std::borrow::Cow<'a, [u64]>),
 
 	Bool(bool),
-
-	Byte(u8),
 
 	DictEntry {
 		key: crate::std2::CowRef<'a, Variant<'a>>,
@@ -73,10 +71,12 @@ pub enum Variant<'a> {
 	/// A sequence of signatures.
 	///
 	/// A message body with one or more parameters is of this type. For example, if a method takes two parameters of type string and byte,
-	/// the body should be a `Variant::Tuple { elements: (&[Variant::String(...), Variant::Byte(...)][..]).into() }`
+	/// the body should be a `Variant::Tuple { elements: (&[Variant::String(...), Variant::U8(...)][..]).into() }`
 	Tuple {
 		elements: crate::std2::CowSlice<'a, Variant<'a>>,
 	},
+
+	U8(u8),
 
 	U16(u16),
 
@@ -162,9 +162,6 @@ impl<'a> Variant<'a> {
 			Variant::ArrayBool(_) =>
 				crate::types::Signature::Array { element: Box::new(crate::types::Signature::Bool) },
 
-			Variant::ArrayByte(_) =>
-				crate::types::Signature::Array { element: Box::new(crate::types::Signature::Byte) },
-
 			Variant::ArrayDouble(_) =>
 				crate::types::Signature::Array { element: Box::new(crate::types::Signature::Double) },
 
@@ -180,6 +177,9 @@ impl<'a> Variant<'a> {
 			Variant::ArrayString(_) =>
 				crate::types::Signature::Array { element: Box::new(crate::types::Signature::String) },
 
+			Variant::ArrayU8(_) =>
+				crate::types::Signature::Array { element: Box::new(crate::types::Signature::U8) },
+
 			Variant::ArrayU16(_) =>
 				crate::types::Signature::Array { element: Box::new(crate::types::Signature::U16) },
 
@@ -191,9 +191,6 @@ impl<'a> Variant<'a> {
 
 			Variant::Bool(_) =>
 				crate::types::Signature::Bool,
-
-			Variant::Byte(_) =>
-				crate::types::Signature::Byte,
 
 			Variant::DictEntry { key, value } =>
 				crate::types::Signature::DictEntry {
@@ -228,6 +225,9 @@ impl<'a> Variant<'a> {
 			Variant::Tuple { elements } =>
 				crate::types::Signature::Tuple { elements: elements.iter().map(Variant::inner_signature).collect() },
 
+			Variant::U8(_) =>
+				crate::types::Signature::U8,
+
 			Variant::U16(_) =>
 				crate::types::Signature::U16,
 
@@ -254,9 +254,6 @@ impl serde::Serialize for Variant<'_> {
 			Variant::ArrayBool(elements) =>
 				elements.serialize(serializer),
 
-			Variant::ArrayByte(elements) =>
-				elements.serialize(serializer),
-
 			Variant::ArrayDouble(elements) =>
 				elements.serialize(serializer),
 
@@ -272,6 +269,9 @@ impl serde::Serialize for Variant<'_> {
 			Variant::ArrayString(elements) =>
 				elements.serialize(serializer),
 
+			Variant::ArrayU8(elements) =>
+				elements.serialize(serializer),
+
 			Variant::ArrayU16(elements) =>
 				elements.serialize(serializer),
 
@@ -282,9 +282,6 @@ impl serde::Serialize for Variant<'_> {
 				elements.serialize(serializer),
 
 			Variant::Bool(value) =>
-				value.serialize(serializer),
-
-			Variant::Byte(value) =>
 				value.serialize(serializer),
 
 			Variant::DictEntry { key, value } => {
@@ -330,6 +327,9 @@ impl serde::Serialize for Variant<'_> {
 				}
 				serializer.end()
 			},
+
+			Variant::U8(value) =>
+				value.serialize(serializer),
 
 			Variant::U16(value) =>
 				value.serialize(serializer),
@@ -386,11 +386,6 @@ impl<'de, 'input, 'output> serde::de::DeserializeSeed<'de> for VariantDeserializ
 					crate::types::Signature::Bool => {
 						let value = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("value"))?;
 						Ok(Variant::Bool(value))
-					},
-
-					crate::types::Signature::Byte => {
-						let value = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("value"))?;
-						Ok(Variant::Byte(value))
 					},
 
 					crate::types::Signature::DictEntry { key, value } => {
@@ -468,6 +463,11 @@ impl<'de, 'input, 'output> serde::de::DeserializeSeed<'de> for VariantDeserializ
 						Ok(Variant::Tuple { elements: elements.into() })
 					},
 
+					crate::types::Signature::U8 => {
+						let value = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("value"))?;
+						Ok(Variant::U8(value))
+					},
+
 					crate::types::Signature::U16 => {
 						let value = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("value"))?;
 						Ok(Variant::U16(value))
@@ -510,14 +510,6 @@ impl<'de, 'input, 'output> serde::de::DeserializeSeed<'de> for VariantDeserializ
 
 					fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error> where A: serde::de::SeqAccess<'de> {
 						match self.0 {
-							crate::types::Signature::Byte => {
-								let mut elements = vec![];
-								while let Some(element) = seq.next_element()? {
-									elements.push(element);
-								}
-								Ok(Variant::ArrayByte(elements.into()))
-							},
-
 							crate::types::Signature::Bool => {
 								let mut elements = vec![];
 								while let Some(element) = seq.next_element()? {
@@ -564,6 +556,14 @@ impl<'de, 'input, 'output> serde::de::DeserializeSeed<'de> for VariantDeserializ
 									elements.push(element);
 								}
 								Ok(Variant::ArrayString(elements.into()))
+							},
+
+							crate::types::Signature::U8 => {
+								let mut elements = vec![];
+								while let Some(element) = seq.next_element()? {
+									elements.push(element);
+								}
+								Ok(Variant::ArrayU8(elements.into()))
 							},
 
 							crate::types::Signature::U16 => {
@@ -681,7 +681,7 @@ mod tests {
 			",
 			super::Variant::Tuple {
 				elements: (&[
-					super::Variant::Byte(0x05),
+					super::Variant::U8(0x05),
 					super::Variant::ArrayU32((&[
 						0x01020304_u32,
 						0x05060708_u32,
@@ -711,7 +711,7 @@ mod tests {
 			",
 			super::Variant::Tuple {
 				elements: (&[
-					super::Variant::Byte(0x05),
+					super::Variant::U8(0x05),
 					super::Variant::Bool(true),
 				][..]).into(),
 			},
@@ -764,7 +764,7 @@ mod tests {
 			",
 			super::Variant::Tuple {
 				elements: (&[
-					super::Variant::Byte(0x05),
+					super::Variant::U8(0x05),
 					super::Variant::Array {
 						element_signature: crate::types::Signature::DictEntry {
 							key: Box::new(crate::types::Signature::U16),
@@ -800,7 +800,7 @@ mod tests {
 			",
 			super::Variant::Tuple {
 				elements: (&[
-					super::Variant::Byte(0x05),
+					super::Variant::U8(0x05),
 					super::Variant::Double(1.234),
 				][..]).into(),
 			},
@@ -846,7 +846,7 @@ mod tests {
 			",
 			super::Variant::Tuple {
 				elements: (&[
-					super::Variant::Byte(0x05),
+					super::Variant::U8(0x05),
 					super::Variant::Signature(crate::types::Signature::String),
 				][..]).into(),
 			},
@@ -867,7 +867,7 @@ mod tests {
 			",
 			super::Variant::Tuple {
 				elements: (&[
-					super::Variant::Byte(0x05),
+					super::Variant::U8(0x05),
 					super::Variant::I32(0x01020304),
 				][..]).into(),
 			},
@@ -888,7 +888,7 @@ mod tests {
 			",
 			super::Variant::Tuple {
 				elements: (&[
-					super::Variant::Byte(0x05),
+					super::Variant::U8(0x05),
 					super::Variant::I16(0x0102),
 				][..]).into(),
 			},
@@ -909,7 +909,7 @@ mod tests {
 			",
 			super::Variant::Tuple {
 				elements: (&[
-					super::Variant::Byte(0x05),
+					super::Variant::U8(0x05),
 					super::Variant::ObjectPath(crate::types::ObjectPath("/org/freedesktop/DBus".into())),
 				][..]).into(),
 			},
@@ -930,7 +930,7 @@ mod tests {
 			",
 			super::Variant::Tuple {
 				elements: (&[
-					super::Variant::Byte(0x05),
+					super::Variant::U8(0x05),
 					super::Variant::U16(0x0102),
 				][..]).into(),
 			},
@@ -957,7 +957,7 @@ mod tests {
 			",
 			super::Variant::Tuple {
 				elements: (&[
-					super::Variant::Byte(0x05),
+					super::Variant::U8(0x05),
 					super::Variant::String("org.freedesktop.DBus".into()),
 				][..]).into(),
 			},
@@ -978,7 +978,7 @@ mod tests {
 			",
 			super::Variant::Tuple {
 				elements: (&[
-					super::Variant::Byte(0x05),
+					super::Variant::U8(0x05),
 					super::Variant::U64(0x01020304_05060708),
 				][..]).into(),
 			},
@@ -999,7 +999,7 @@ mod tests {
 			",
 			super::Variant::Tuple {
 				elements: (&[
-					super::Variant::Byte(0x05),
+					super::Variant::U8(0x05),
 					super::Variant::U32(0x01020304),
 				][..]).into(),
 			},
@@ -1021,7 +1021,7 @@ mod tests {
 			",
 			super::Variant::Tuple {
 				elements: (&[
-					super::Variant::Byte(0x05),
+					super::Variant::U8(0x05),
 					super::Variant::Variant((&
 						super::Variant::String("org.freedesktop.DBus".into())
 					).into()),
@@ -1044,7 +1044,7 @@ mod tests {
 			",
 			super::Variant::Tuple {
 				elements: (&[
-					super::Variant::Byte(0x05),
+					super::Variant::U8(0x05),
 					super::Variant::I64(0x01020304_05060708),
 				][..]).into(),
 			},
@@ -1053,7 +1053,7 @@ mod tests {
 		test(
 			"y",
 			b"\x01",
-			super::Variant::Byte(0x01),
+			super::Variant::U8(0x01),
 		);
 
 		test(
@@ -1064,8 +1064,8 @@ mod tests {
 			",
 			super::Variant::Tuple {
 				elements: (&[
-					super::Variant::Byte(0x05),
-					super::Variant::Byte(0x01),
+					super::Variant::U8(0x05),
+					super::Variant::U8(0x01),
 				][..]).into(),
 			},
 		);
@@ -1130,7 +1130,7 @@ mod tests {
 			",
 			super::Variant::Tuple {
 				elements: (&[
-					super::Variant::Byte(0x05),
+					super::Variant::U8(0x05),
 					super::Variant::Struct {
 						fields: (&[
 							super::Variant::U32(0x01020304),

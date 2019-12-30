@@ -38,7 +38,6 @@ impl<'de, 'a> serde::Deserialize<'de> for ObjectPath<'a> {
 pub enum Signature {
 	Array { element: Box<Signature> },
 	Bool,
-	Byte,
 	DictEntry { key: Box<Signature>, value: Box<Signature> },
 	Double,
 	I16,
@@ -49,6 +48,7 @@ pub enum Signature {
 	String,
 	Struct { fields: Vec<Signature> },
 	Tuple { elements: Vec<Signature> },
+	U8,
 	U16,
 	U32,
 	U64,
@@ -63,9 +63,6 @@ impl std::fmt::Display for Signature {
 
 			Signature::Bool =>
 				f.write_str("b")?,
-
-			Signature::Byte =>
-				f.write_str("y")?,
 
 			Signature::DictEntry { key, value } => {
 				f.write_str("{")?;
@@ -107,6 +104,9 @@ impl std::fmt::Display for Signature {
 				for element in elements {
 					write!(f, "{}", element)?;
 				},
+
+			Signature::U8 =>
+				f.write_str("y")?,
 
 			Signature::U16 =>
 				f.write_str("q")?,
@@ -160,7 +160,7 @@ impl std::str::FromStr for Signature {
 
 				'x' => Ok(Signature::I64),
 
-				'y' => Ok(Signature::Byte),
+				'y' => Ok(Signature::U8),
 
 				'(' => {
 					let mut fields = vec![];

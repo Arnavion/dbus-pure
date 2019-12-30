@@ -80,7 +80,7 @@ impl Client {
 	///
 	/// - If the method has more than one parameter, set `parameters` to `Some(&Variant::Tuple { ... })`.
 	///   For example, if the method takes two parameters of type string and byte, `parameters` should be
-	///   `Some(&Variant::Tuple { elements: (&[Variant::String(...), Variant::Byte(...)][..]).into() })`
+	///   `Some(&Variant::Tuple { elements: (&[Variant::String(...), Variant::U8(...)][..]).into() })`
 	pub fn method_call(
 		&mut self,
 		destination: &str,
