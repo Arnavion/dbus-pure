@@ -357,8 +357,8 @@ pub struct VariantDeserializeSeed<'input, 'output>(&'input crate::types::Signatu
 
 impl<'input, 'output> VariantDeserializeSeed<'input, 'output> {
 	/// Construct a `VariantDeserializeSeed` that will deserialize a [`Variant`] of the given signature.
-	pub fn new(signature: &'input crate::types::Signature) -> Result<Self, ()> {
-		Ok(VariantDeserializeSeed(signature, Default::default()))
+	pub fn new(signature: &'input crate::types::Signature) -> Self {
+		VariantDeserializeSeed(signature, Default::default())
 	}
 }
 
@@ -645,7 +645,7 @@ mod tests {
 		) {
 			let signature: crate::types::Signature = signature.parse().unwrap();
 
-			let deserialize_seed = crate::types::VariantDeserializeSeed::new(&signature).unwrap();
+			let deserialize_seed = crate::types::VariantDeserializeSeed::new(&signature);
 
 			let mut deserializer = crate::de::Deserializer::new(expected_serialized, 0);
 			let actual_variant: super::Variant<'_> = serde::de::DeserializeSeed::deserialize(deserialize_seed, &mut deserializer).unwrap();

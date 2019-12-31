@@ -41,9 +41,7 @@ pub(crate) fn deserialize_message(buf: &[u8]) -> Result<(MessageHeader<'static>,
 					_ => None,
 				})
 				.ok_or_else(|| serde::de::Error::custom("message has non-empty body but not signature field in its header"))?;
-			let deserialize_seed =
-				crate::types::VariantDeserializeSeed::new(signature)
-				.map_err(|()| serde::de::Error::custom(format!("message has malformed signature {:?}", signature)))?;
+			let deserialize_seed = crate::types::VariantDeserializeSeed::new(signature);
 
 			let mut deserializer = crate::de::Deserializer::new(&buf[..body_end_pos], body_start_pos);
 
@@ -450,9 +448,7 @@ impl<'de> serde::Deserialize<'de> for MessageHeaderField<'static> {
 				let code: u8 = map.next_key()?.ok_or_else(|| serde::de::Error::missing_field("code"))?;
 
 				let signature: crate::types::Signature = map.next_value()?;
-				let seed =
-					crate::types::VariantDeserializeSeed::new(&signature)
-					.map_err(|()| serde::de::Error::custom(format!("message has malformed signature {:?}", signature)))?;
+				let seed = crate::types::VariantDeserializeSeed::new(&signature);
 				let value: crate::types::Variant<'static> = map.next_value_seed(seed)?;
 
 				#[allow(clippy::match_same_arms)]
