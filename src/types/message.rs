@@ -20,7 +20,7 @@ pub struct MessageHeader<'a> {
 pub(crate) fn deserialize_message(buf: &[u8]) -> Result<(MessageHeader<'static>, Option<crate::types::Variant<'static>>, usize), crate::de::DeserializeError> {
 	let mut deserializer = crate::de::Deserializer::new(buf, 0);
 
-	let mut message_header: MessageHeader<'static> = serde::Deserialize::deserialize(&mut deserializer)?;
+	let message_header: MessageHeader<'static> = serde::Deserialize::deserialize(&mut deserializer)?;
 
 	deserializer.pad_to(8)?;
 
@@ -53,92 +53,6 @@ pub(crate) fn deserialize_message(buf: &[u8]) -> Result<(MessageHeader<'static>,
 			(None, deserializer.pos())
 		};
 
-	match message_header.r#type {
-		MessageType::Error { .. } => {
-			let name =
-				message_header.fields.iter()
-				.find_map(|field| if let MessageHeaderField::ErrorName(name) = field { Some(name.clone()) } else { None });
-
-			let reply_serial =
-				message_header.fields.iter()
-				.find_map(|field| if let MessageHeaderField::ReplySerial(serial) = field { Some(*serial) } else { None });
-
-			message_header.r#type = match (name, reply_serial) {
-				(Some(name), Some(reply_serial)) => MessageType::Error {
-					name,
-					reply_serial,
-				},
-
-				(None, _) => return Err(serde::de::Error::custom("ERROR message does not have ERROR_NAME header field")),
-
-				(_, None) => return Err(serde::de::Error::custom("ERROR message does not have REPLY_SERIAL header field")),
-			};
-		},
-
-		MessageType::MethodCall { .. } => {
-			let member =
-				message_header.fields.iter()
-				.find_map(|field| if let MessageHeaderField::Member(member) = field { Some(member.clone()) } else { None });
-
-			let path =
-				message_header.fields.iter()
-				.find_map(|field| if let MessageHeaderField::Path(path) = field { Some(path.clone()) } else { None });
-
-			message_header.r#type = match (member, path) {
-				(Some(member), Some(path)) => MessageType::MethodCall {
-					member,
-					path,
-				},
-
-				(None, _) => return Err(serde::de::Error::custom("METHOD_CALL message does not have MEMBER header field")),
-
-				(_, None) => return Err(serde::de::Error::custom("METHOD_CALL message does not have PATH header field")),
-			};
-		},
-
-		MessageType::MethodReturn { .. } => {
-			let reply_serial =
-				message_header.fields.iter()
-				.find_map(|field| if let MessageHeaderField::ReplySerial(serial) = field { Some(*serial) } else { None });
-
-			message_header.r#type = match reply_serial {
-				Some(reply_serial) => MessageType::MethodReturn {
-					reply_serial,
-				},
-
-				None => return Err(serde::de::Error::custom("METHOD_RETURN message does not have REPLY_SERIAL header field")),
-			};
-		},
-
-		MessageType::Signal { .. } => {
-			let interface =
-				message_header.fields.iter()
-				.find_map(|field| if let MessageHeaderField::Interface(interface) = field { Some(interface.clone()) } else { None });
-
-			let member =
-				message_header.fields.iter()
-				.find_map(|field| if let MessageHeaderField::Member(member) = field { Some(member.clone()) } else { None });
-
-			let path =
-				message_header.fields.iter()
-				.find_map(|field| if let MessageHeaderField::Path(path) = field { Some(path.clone()) } else { None });
-
-			message_header.r#type = match (interface, member, path) {
-				(Some(interface), Some(member), Some(path)) => MessageType::Signal {
-					interface,
-					member,
-					path,
-				},
-
-				(None, _, _) => return Err(serde::de::Error::custom("SIGNAL message does not have INTERFACE header field")),
-
-				(_, None, _) => return Err(serde::de::Error::custom("SIGNAL message does not have MEMBER header field")),
-
-				(_, _, None) => return Err(serde::de::Error::custom("SIGNAL message does not have PATH header field")),
-			};
-		},
-	}
-
 	Ok((message_header, message_body, read))
 }
 
@@ -151,15 +65,15 @@ pub(crate) fn serialize_message(
 
 	let header_fields = header.fields.to_mut();
 
-	match &header.r#type {
+	match &mut header.r#type {
 		MessageType::Error { name, reply_serial } => {
-			header_fields.push(MessageHeaderField::ErrorName(name.clone()));
+			header_fields.push(MessageHeaderField::ErrorName(std::mem::take(name)));
 			header_fields.push(MessageHeaderField::ReplySerial(*reply_serial));
 		},
 
 		MessageType::MethodCall { member, path } => {
-			header_fields.push(MessageHeaderField::Member(member.clone()));
-			header_fields.push(MessageHeaderField::Path(path.clone()));
+			header_fields.push(MessageHeaderField::Member(std::mem::take(member)));
+			header_fields.push(MessageHeaderField::Path(std::mem::take(path)));
 		},
 
 		MessageType::MethodReturn { reply_serial } => {
@@ -167,9 +81,9 @@ pub(crate) fn serialize_message(
 		},
 
 		MessageType::Signal { interface, member, path } => {
-			header_fields.push(MessageHeaderField::Interface(interface.clone()));
-			header_fields.push(MessageHeaderField::Member(member.clone()));
-			header_fields.push(MessageHeaderField::Path(path.clone()));
+			header_fields.push(MessageHeaderField::Interface(std::mem::take(interface)));
+			header_fields.push(MessageHeaderField::Member(std::mem::take(member)));
+			header_fields.push(MessageHeaderField::Path(std::mem::take(path)));
 		},
 	}
 
@@ -227,7 +141,7 @@ impl<'de> serde::Deserialize<'de> for MessageHeader<'static> {
 					return Err(serde::de::Error::invalid_value(serde::de::Unexpected::Unsigned(endianness.into()), &"'l'"));
 				}
 
-				let r#type: MessageType<'static> = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("type"))?;
+				let r#type: u8 = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("type"))?;
 
 				let flags: MessageFlags = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("flags"))?;
 
@@ -242,6 +156,8 @@ impl<'de> serde::Deserialize<'de> for MessageHeader<'static> {
 				let serial: u32 = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("serial"))?;
 
 				let fields: Vec<MessageHeaderField<'static>> = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("fields"))?;
+
+				let (r#type, fields) = MessageType::from::<A>(r#type, fields)?;
 
 				Ok(MessageHeader {
 					r#type,
@@ -305,41 +221,103 @@ pub enum MessageType<'a> {
 	},
 }
 
-impl<'de> serde::Deserialize<'de> for MessageType<'static> {
-	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
-		struct Visitor;
+impl MessageType<'static> {
+	fn from<'de, A>(
+		r#type: u8,
+		fields: Vec<MessageHeaderField<'static>>,
+	) -> Result<(Self, Vec<MessageHeaderField<'static>>), A::Error> where A: serde::de::SeqAccess<'de> {
+		// TODO: Use `Vec::drain_filter` when that stabilizes to mutate `fields` in place
 
-		impl<'de> serde::de::Visitor<'de> for Visitor {
-			type Value = MessageType<'static>;
+		let mut other_fields = vec![];
 
-			fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-				formatter.write_str("message type")
-			}
+		let mut error_name_field = None;
+		let mut interface_field = None;
+		let mut member_field = None;
+		let mut path_field = None;
+		let mut reply_serial_field = None;
 
-			fn visit_u8<E>(self, v: u8) -> Result<Self::Value, E> where E: serde::de::Error {
-				match v {
-					0x01 => Ok(MessageType::MethodCall {
-						member: Default::default(),
-						path: Default::default(),
-					}),
-					0x02 => Ok(MessageType::MethodReturn {
-						reply_serial: Default::default(),
-					}),
-					0x03 => Ok(MessageType::Error {
-						name: Default::default(),
-						reply_serial: Default::default(),
-					}),
-					0x04 => Ok(MessageType::Signal {
-						interface: Default::default(),
-						member: Default::default(),
-						path: Default::default(),
-					}),
-					v => Err(serde::de::Error::invalid_value(serde::de::Unexpected::Unsigned(v.into()), &"one of 0x01, 0x02, 0x03, 0x04")),
-				}
+		for field in fields {
+			match field {
+				MessageHeaderField::Destination(destination) =>
+					other_fields.push(MessageHeaderField::Destination(destination)),
+
+				MessageHeaderField::ErrorName(error_name) if r#type == 0x03 =>
+					error_name_field = Some(error_name),
+				MessageHeaderField::ErrorName(error_name) =>
+					other_fields.push(MessageHeaderField::ErrorName(error_name)),
+
+				MessageHeaderField::Interface(interface) if r#type == 0x04 =>
+					interface_field = Some(interface),
+				MessageHeaderField::Interface(interface) =>
+					other_fields.push(MessageHeaderField::Interface(interface)),
+
+				MessageHeaderField::Member(member) if r#type == 0x01 || r#type == 0x04 =>
+					member_field = Some(member),
+				MessageHeaderField::Member(member) =>
+					other_fields.push(MessageHeaderField::Member(member)),
+
+				MessageHeaderField::Path(path) if r#type == 0x01 || r#type == 0x04 =>
+					path_field = Some(path),
+				MessageHeaderField::Path(path) =>
+					other_fields.push(MessageHeaderField::Path(path)),
+
+				MessageHeaderField::ReplySerial(reply_serial) if r#type == 0x02 || r#type == 0x03 =>
+					reply_serial_field = Some(reply_serial),
+				MessageHeaderField::ReplySerial(reply_serial) =>
+					other_fields.push(MessageHeaderField::ReplySerial(reply_serial)),
+
+				MessageHeaderField::Sender(sender) =>
+					other_fields.push(MessageHeaderField::Sender(sender)),
+
+				MessageHeaderField::Signature(signature) =>
+					other_fields.push(MessageHeaderField::Signature(signature)),
+
+				MessageHeaderField::Unknown { code, value } =>
+					other_fields.push(MessageHeaderField::Unknown { code, value }),
 			}
 		}
 
-		deserializer.deserialize_u8(Visitor)
+		let r#type = match r#type {
+			0x01 => {
+				let member = member_field.ok_or_else(|| serde::de::Error::custom("METHOD_CALL message does not have MEMBER header field"))?;
+				let path = path_field.ok_or_else(|| serde::de::Error::custom("METHOD_CALL message does not have PATH header field"))?;
+				MessageType::MethodCall {
+					member,
+					path,
+				}
+			},
+
+			0x02 => {
+				let reply_serial = reply_serial_field.ok_or_else(|| serde::de::Error::custom("METHOD_RETURN message does not have REPLY_SERIAL header field"))?;
+				MessageType::MethodReturn {
+					reply_serial,
+				}
+			},
+
+			0x03 => {
+				let name = error_name_field.ok_or_else(|| serde::de::Error::custom("ERROR message does not have NAME header field"))?;
+				let reply_serial = reply_serial_field.ok_or_else(|| serde::de::Error::custom("ERROR message does not have REPLY_SERIAL header field"))?;
+				MessageType::Error {
+					name,
+					reply_serial,
+				}
+			},
+
+			0x04 => {
+				let interface = interface_field.ok_or_else(|| serde::de::Error::custom("SIGNAL message does not have INTERFACE header field"))?;
+				let member = member_field.ok_or_else(|| serde::de::Error::custom("SIGNAL message does not have MEMBER header field"))?;
+				let path = path_field.ok_or_else(|| serde::de::Error::custom("SIGNAL message does not have PATH header field"))?;
+				MessageType::Signal {
+					interface,
+					member,
+					path,
+				}
+			},
+
+			v => return Err(serde::de::Error::invalid_value(serde::de::Unexpected::Unsigned(v.into()), &"one of 0x01, 0x02, 0x03, 0x04")),
+		};
+
+		Ok((r#type, other_fields))
 	}
 }
 
