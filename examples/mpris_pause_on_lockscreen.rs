@@ -1,3 +1,10 @@
+#![deny(rust_2018_idioms, warnings)]
+#![deny(clippy::all, clippy::pedantic)]
+#![allow(
+	clippy::default_trait_access,
+	clippy::unneeded_field_pattern,
+)]
+
 // Connects to the session bus and subscribes to screen lock / unlock events.
 // When the screen is locked, it enumerates all media players that implement MPRIS, and pauses them if they were playing.
 // When the screen is unlocked, it unpauses all the players it had paused.

@@ -1,3 +1,6 @@
+#![deny(rust_2018_idioms, warnings)]
+#![deny(clippy::all, clippy::pedantic)]
+
 // Connects to the session bus, enumerates all media players that implement MPRIS, and prints their playback status.
 
 fn main() -> Result<(), Error> {
