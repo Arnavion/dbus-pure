@@ -1,6 +1,6 @@
 /// A D-Bus client.
 pub struct Client {
-	connection: Option<crate::conn::Connection>,
+	connection: crate::conn::Connection,
 	last_serial: u32,
 	name: Option<String>,
 	received_messages: std::collections::VecDeque<(crate::types::MessageHeader<'static>, Option<crate::types::Variant<'static>>)>,
@@ -12,7 +12,7 @@ impl Client {
 	/// This function will complete the `org.freedesktop.DBus.Hello` handshake and obtain its name before returning.
 	pub fn new(connection: crate::conn::Connection) -> Result<Self, CreateClientError> {
 		let mut client = Client {
-			connection: Some(connection),
+			connection,
 			last_serial: 0,
 			name: None,
 			received_messages: Default::default(),
@@ -49,9 +49,7 @@ impl Client {
 	/// - The `MessageHeaderField::Signature` field will be automatically inserted if a body is specified, and must not be inserted by the caller.
 	///
 	/// Returns the serial of the message.
-	pub fn send(&mut self, header: &mut crate::types::MessageHeader<'_>, body: Option<&crate::types::Variant<'_>>) -> Result<u32, SendError> {
-		let connection = self.connection.as_mut().ok_or(SendError::Poisoned)?;
-
+	pub fn send(&mut self, header: &mut crate::types::MessageHeader<'_>, body: Option<&crate::types::Variant<'_>>) -> Result<u32, crate::conn::SendError> {
 		// Serial is in the range 1..=u32::max_value() , ie it rolls over to 1 rather than 0
 		self.last_serial = self.last_serial % u32::max_value() + 1;
 		header.serial = self.last_serial;
@@ -61,15 +59,7 @@ impl Client {
 			header.fields.to_mut().push(crate::types::MessageHeaderField::Sender(name.clone().into()));
 		}
 
-		let mut write_buf = connection.write_buf();
-		if let Err(err) = crate::types::message::serialize_message(header, body, &mut write_buf) {
-			let _ = self.connection.take();
-			return Err(SendError::Serialize(err));
-		}
-		if let Err(err) = connection.flush() {
-			let _ = self.connection.take();
-			return Err(SendError::Io(err));
-		}
+		let () = self.connection.send(header, body)?;
 
 		Ok(self.last_serial)
 	}
@@ -128,7 +118,7 @@ impl Client {
 	/// Receive a message from the message bus.
 	///
 	/// Blocks until a message is received.
-	pub fn recv(&mut self) -> Result<(crate::types::MessageHeader<'static>, Option<crate::types::Variant<'static>>), RecvError> {
+	pub fn recv(&mut self) -> Result<(crate::types::MessageHeader<'static>, Option<crate::types::Variant<'static>>), crate::conn::RecvError> {
 		if let Some(message) = self.received_messages.pop_front() {
 			return Ok(message);
 		}
@@ -143,7 +133,7 @@ impl Client {
 	pub fn recv_matching(
 		&mut self,
 		mut predicate: impl FnMut(&crate::types::MessageHeader<'static>, Option<&crate::types::Variant<'static>>) -> bool,
-	) -> Result<(crate::types::MessageHeader<'static>, Option<crate::types::Variant<'static>>), RecvError> {
+	) -> Result<(crate::types::MessageHeader<'static>, Option<crate::types::Variant<'static>>), crate::conn::RecvError> {
 		for (i, already_received_message) in self.received_messages.iter().enumerate() {
 			if predicate(&already_received_message.0, already_received_message.1.as_ref()) {
 				let result = self.received_messages.remove(i).unwrap();
@@ -161,32 +151,8 @@ impl Client {
 		}
 	}
 
-	fn recv_new(&mut self) -> Result<(crate::types::MessageHeader<'static>, Option<crate::types::Variant<'static>>), RecvError> {
-		let connection = self.connection.as_mut().ok_or(RecvError::Poisoned)?;
-
-		loop {
-			let read_buf = connection.read_buf();
-
-			match crate::types::message::deserialize_message(read_buf) {
-				Ok((message_header, message_body, read)) => {
-					connection.consume(read);
-					return Ok((message_header, message_body));
-				},
-
-				Err(crate::de::DeserializeError::EndOfInput) => match connection.recv() {
-					Ok(()) => (),
-					Err(err) => {
-						let _ = self.connection.take();
-						return Err(RecvError::Io(err));
-					},
-				},
-
-				Err(err) => {
-					let _ = self.connection.take();
-					return Err(RecvError::Deserialize(err));
-				},
-			}
-		}
+	fn recv_new(&mut self) -> Result<(crate::types::MessageHeader<'static>, Option<crate::types::Variant<'static>>), crate::conn::RecvError> {
+		self.connection.recv()
 	}
 }
 
@@ -225,68 +191,12 @@ impl std::error::Error for CreateClientError {
 	}
 }
 
-/// An error from sending a message using a [`Client`].
-#[derive(Debug)]
-pub enum SendError {
-	Io(std::io::Error),
-	Poisoned,
-	Serialize(crate::ser::SerializeError),
-}
-
-impl std::fmt::Display for SendError {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		match self {
-			SendError::Io(_) => f.write_str("could not send message"),
-			SendError::Poisoned => f.write_str("a previous error has poisoned this client"),
-			SendError::Serialize(_) => f.write_str("could not serialize message"),
-		}
-	}
-}
-
-impl std::error::Error for SendError {
-	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-		match self {
-			SendError::Io(err) => Some(err),
-			SendError::Poisoned => None,
-			SendError::Serialize(err) => Some(err),
-		}
-	}
-}
-
-/// An error from receiving a message using a [`Client`].
-#[derive(Debug)]
-pub enum RecvError {
-	Deserialize(crate::de::DeserializeError),
-	Io(std::io::Error),
-	Poisoned,
-}
-
-impl std::fmt::Display for RecvError {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		match self {
-			RecvError::Deserialize(_) => f.write_str("could not deserialize message"),
-			RecvError::Io(_) => f.write_str("could not receive message"),
-			RecvError::Poisoned => f.write_str("this client previously encountered an unrecoverable error so it cannot be used any more"),
-		}
-	}
-}
-
-impl std::error::Error for RecvError {
-	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-		match self {
-			RecvError::Deserialize(err) => Some(err),
-			RecvError::Io(err) => Some(err),
-			RecvError::Poisoned => None,
-		}
-	}
-}
-
 /// An error from calling a method using a [`Client`].
 #[derive(Debug)]
 pub enum MethodCallError {
 	Error(String, Option<crate::types::Variant<'static>>),
-	RecvResponse(RecvError),
-	SendRequest(SendError),
+	RecvResponse(crate::conn::RecvError),
+	SendRequest(crate::conn::SendError),
 }
 
 impl std::fmt::Display for MethodCallError {

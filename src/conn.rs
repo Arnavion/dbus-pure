@@ -123,45 +123,54 @@ impl Connection {
 		&self.server_guid
 	}
 
-	pub(crate) fn write_buf(&mut self) -> &mut Vec<u8> {
-		&mut self.write_buf
-	}
-
-	pub(crate) fn flush(&mut self) -> std::io::Result<()> {
+	/// Send a message with the given header and body to the message bus.
+	///
+	/// - Header fields corresponding to the required properties of the message type will be automatically inserted, and *must not* be inserted by the caller.
+	///   For example, if `header.type` is `MethodCall { member, path }`, the `MessageHeaderField::Member` and `MessageHeaderField::Path` fields
+	///   will be inserted automatically.
+	///
+	/// - The `MessageHeaderField::Signature` field will be automatically inserted if a body is specified, and must not be inserted by the caller.
+	pub fn send(&mut self, header: &mut crate::types::MessageHeader<'_>, body: Option<&crate::types::Variant<'_>>) -> Result<(), SendError> {
 		use std::io::Write;
 
-		self.writer.write_all(&self.write_buf)?;
+		let () = crate::types::message::serialize_message(header, body, &mut self.write_buf).map_err(SendError::Serialize)?;
+
+		let _ = self.writer.write_all(&self.write_buf).map_err(SendError::Io)?;
 		self.write_buf.clear();
 
-		self.writer.flush()?;
+		let () = self.writer.flush().map_err(SendError::Io)?;
 
 		Ok(())
 	}
 
-	pub(crate) fn read_buf(&self) -> &[u8] {
-		&self.read_buf[..self.read_end]
-	}
-
-	pub(crate) fn recv(&mut self) -> std::io::Result<()> {
+	/// Receive a message from the message bus.
+	pub fn recv(&mut self) -> Result<(crate::types::MessageHeader<'static>, Option<crate::types::Variant<'static>>), RecvError> {
 		use std::io::Read;
 
-		if self.read_end == self.read_buf.len() {
-			self.read_buf.resize(self.read_buf.len() * 2, 0);
+		loop {
+			match crate::types::message::deserialize_message(&self.read_buf[..self.read_end]) {
+				Ok((message_header, message_body, read)) => {
+					self.read_buf.copy_within(read..self.read_end, 0);
+					self.read_end -= read;
+					return Ok((message_header, message_body));
+				},
+
+				Err(crate::de::DeserializeError::EndOfInput) => {
+					if self.read_end == self.read_buf.len() {
+						self.read_buf.resize(self.read_buf.len() * 2, 0);
+					}
+
+					let read = self.reader.read(&mut self.read_buf[self.read_end..]).map_err(RecvError::Io)?;
+					if read == 0 {
+						return Err(RecvError::Io(std::io::ErrorKind::UnexpectedEof.into()));
+					}
+
+					self.read_end += read;
+				},
+
+				Err(err) => return Err(RecvError::Deserialize(err)),
+			}
 		}
-
-		let read = self.reader.read(&mut self.read_buf[self.read_end..])?;
-		if read == 0 {
-			return Err(std::io::ErrorKind::UnexpectedEof.into());
-		}
-
-		self.read_end += read;
-
-		Ok(())
-	}
-
-	pub(crate) fn consume(&mut self, consumed: usize) {
-		self.read_buf.copy_within(consumed..self.read_end, 0);
-		self.read_end -= consumed;
 	}
 }
 
@@ -196,6 +205,56 @@ impl std::error::Error for ConnectError {
 			ConnectError::Authenticate(err) => Some(err),
 			ConnectError::Connect { bus_path: _, err } => Some(err),
 			ConnectError::SessionBusEnvVar(_) => None,
+		}
+	}
+}
+
+/// An error from sending a message using a [`Connection::send`].
+#[derive(Debug)]
+pub enum SendError {
+	Io(std::io::Error),
+	Serialize(crate::ser::SerializeError),
+}
+
+impl std::fmt::Display for SendError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			SendError::Io(_) => f.write_str("could not send message"),
+			SendError::Serialize(_) => f.write_str("could not serialize message"),
+		}
+	}
+}
+
+impl std::error::Error for SendError {
+	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+		match self {
+			SendError::Io(err) => Some(err),
+			SendError::Serialize(err) => Some(err),
+		}
+	}
+}
+
+/// An error from receiving a message using a [`Connection::recv`].
+#[derive(Debug)]
+pub enum RecvError {
+	Deserialize(crate::de::DeserializeError),
+	Io(std::io::Error),
+}
+
+impl std::fmt::Display for RecvError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		match self {
+			RecvError::Deserialize(_) => f.write_str("could not deserialize message"),
+			RecvError::Io(_) => f.write_str("could not receive message"),
+		}
+	}
+}
+
+impl std::error::Error for RecvError {
+	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+		match self {
+			RecvError::Deserialize(err) => Some(err),
+			RecvError::Io(err) => Some(err),
 		}
 	}
 }
