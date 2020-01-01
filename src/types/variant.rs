@@ -122,6 +122,22 @@ impl<'a> Variant<'a> {
 		}
 	}
 
+	/// Convenience function to view this `Variant` as a `bool` if it is one.
+	pub fn as_bool(&self) -> Option<bool> {
+		match self {
+			Variant::Bool(value) => Some(*value),
+			_ => None,
+		}
+	}
+
+	/// Convenience function to convert this `Variant` into a `bool` if it is one, else return the original `Variant`.
+	pub fn into_bool(self) -> Result<bool, Self> {
+		match self {
+			Variant::Bool(value) => Ok(value),
+			other => Err(other),
+		}
+	}
+
 	/// Convenience function to view this `Variant` as a `&str` if it's a string.
 	pub fn as_string(&self) -> Option<&str> {
 		match self {
