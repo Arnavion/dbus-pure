@@ -272,6 +272,9 @@ impl MessageType<'static> {
 				MessageHeaderField::Signature(signature) =>
 					other_fields.push(MessageHeaderField::Signature(signature)),
 
+				MessageHeaderField::UnixFds(num_unix_fds) =>
+					other_fields.push(MessageHeaderField::UnixFds(num_unix_fds)),
+
 				MessageHeaderField::Unknown { code, value } =>
 					other_fields.push(MessageHeaderField::Unknown { code, value }),
 			}
@@ -399,7 +402,7 @@ pub enum MessageHeaderField<'a> {
 
 	Signature(crate::types::Signature),
 
-	// UnixFds(u32),
+	UnixFds(u32),
 
 	Unknown {
 		code: u8,
@@ -487,6 +490,13 @@ impl<'de> serde::Deserialize<'de> for MessageHeaderField<'static> {
 						Err(serde::de::Error::invalid_value(serde::de::Unexpected::Other(&unexpected), &"signature"))
 					},
 
+					(0x09, crate::types::Variant::U32(num_unix_fds)) =>
+						Ok(MessageHeaderField::UnixFds(num_unix_fds)),
+					(0x09, value) => {
+						let unexpected = format!("{:?}", value);
+						Err(serde::de::Error::invalid_value(serde::de::Unexpected::Other(&unexpected), &"u32"))
+					},
+
 					(code, value) =>
 						Ok(MessageHeaderField::Unknown { code, value }),
 				}
@@ -525,6 +535,9 @@ impl serde::Serialize for MessageHeaderField<'_> {
 
 			MessageHeaderField::Signature(signature) =>
 				(0x08_u8, std::borrow::Cow::Owned(crate::types::Variant::Signature(signature.clone()))),
+
+			MessageHeaderField::UnixFds(num_unix_fds) =>
+				(0x09_u8, std::borrow::Cow::Owned(crate::types::Variant::U32(*num_unix_fds))),
 
 			MessageHeaderField::Unknown { code, value } =>
 				(*code, std::borrow::Cow::Borrowed(value)),

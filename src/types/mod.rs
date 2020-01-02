@@ -52,6 +52,7 @@ pub enum Signature {
 	U16,
 	U32,
 	U64,
+	UnixFd,
 	Variant,
 }
 
@@ -117,6 +118,9 @@ impl std::fmt::Display for Signature {
 			Signature::U64 =>
 				f.write_str("t")?,
 
+			Signature::UnixFd =>
+				f.write_str("h")?,
+
 			Signature::Variant =>
 				f.write_str("v")?,
 		}
@@ -141,6 +145,8 @@ impl std::str::FromStr for Signature {
 				'd' => Ok(Signature::Double),
 
 				'g' => Ok(Signature::Signature),
+
+				'h' => Ok(Signature::UnixFd),
 
 				'i' => Ok(Signature::I32),
 
@@ -265,6 +271,22 @@ impl serde::Serialize for Signature {
 			serializer.serialize_element(&b)?;
 		}
 		serializer.end()
+	}
+}
+
+/// An index into an array of file descriptors.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct UnixFd(pub u32);
+
+impl serde::Serialize for UnixFd {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
+		self.0.serialize(serializer)
+	}
+}
+
+impl<'de> serde::Deserialize<'de> for UnixFd {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
+		Ok(UnixFd(serde::de::Deserialize::deserialize(deserializer)?))
 	}
 }
 

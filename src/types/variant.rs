@@ -43,6 +43,8 @@ pub enum Variant<'a> {
 	/// Simpler wrapper over a u64 array (`at`) than the generic `Array` variant.
 	ArrayU64(std::borrow::Cow<'a, [u64]>),
 
+	ArrayUnixFd(std::borrow::Cow<'a, [crate::types::UnixFd]>),
+
 	Bool(bool),
 
 	DictEntry {
@@ -83,6 +85,8 @@ pub enum Variant<'a> {
 	U32(u32),
 
 	U64(u64),
+
+	UnixFd(crate::types::UnixFd),
 
 	Variant(crate::std2::CowRef<'a, Variant<'a>>),
 }
@@ -205,6 +209,9 @@ impl<'a> Variant<'a> {
 			Variant::ArrayU64(_) =>
 				crate::types::Signature::Array { element: Box::new(crate::types::Signature::U64) },
 
+			Variant::ArrayUnixFd(_) =>
+				crate::types::Signature::Array { element: Box::new(crate::types::Signature::UnixFd) },
+
 			Variant::Bool(_) =>
 				crate::types::Signature::Bool,
 
@@ -253,6 +260,9 @@ impl<'a> Variant<'a> {
 			Variant::U64(_) =>
 				crate::types::Signature::U64,
 
+			Variant::UnixFd(_) =>
+				crate::types::Signature::UnixFd,
+
 			Variant::Variant(_) =>
 				crate::types::Signature::Variant,
 		}
@@ -295,6 +305,9 @@ impl serde::Serialize for Variant<'_> {
 				elements.serialize(serializer),
 
 			Variant::ArrayU64(elements) =>
+				elements.serialize(serializer),
+
+			Variant::ArrayUnixFd(elements) =>
 				elements.serialize(serializer),
 
 			Variant::Bool(value) =>
@@ -354,6 +367,9 @@ impl serde::Serialize for Variant<'_> {
 				value.serialize(serializer),
 
 			Variant::U64(value) =>
+				value.serialize(serializer),
+
+			Variant::UnixFd(value) =>
 				value.serialize(serializer),
 
 			Variant::Variant(value) => {
@@ -499,6 +515,11 @@ impl<'de, 'input, 'output> serde::de::DeserializeSeed<'de> for VariantDeserializ
 						Ok(Variant::U64(value))
 					},
 
+					crate::types::Signature::UnixFd => {
+						let value = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("value"))?;
+						Ok(Variant::UnixFd(value))
+					},
+
 					crate::types::Signature::Variant => {
 						let signature: crate::types::Signature = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("value"))?;
 						let seed = VariantDeserializeSeed(&signature, self.1);
@@ -604,6 +625,14 @@ impl<'de, 'input, 'output> serde::de::DeserializeSeed<'de> for VariantDeserializ
 									elements.push(element);
 								}
 								Ok(Variant::ArrayU64(elements.into()))
+							},
+
+							crate::types::Signature::UnixFd => {
+								let mut elements = vec![];
+								while let Some(element) = seq.next_element()? {
+									elements.push(element);
+								}
+								Ok(Variant::ArrayUnixFd(elements.into()))
 							},
 
 							element_signature => {
@@ -864,6 +893,27 @@ mod tests {
 				elements: (&[
 					super::Variant::U8(0x05),
 					super::Variant::Signature(crate::types::Signature::String),
+				][..]).into(),
+			},
+		);
+
+		test(
+			"h",
+			b"\x04\x03\x02\x01",
+			super::Variant::UnixFd(crate::types::UnixFd(0x01020304)),
+		);
+
+		test(
+			"yh",
+			b"\
+				\x05\
+				\x00\x00\x00\
+				\x04\x03\x02\x01\
+			",
+			super::Variant::Tuple {
+				elements: (&[
+					super::Variant::U8(0x05),
+					super::Variant::UnixFd(crate::types::UnixFd(0x01020304)),
 				][..]).into(),
 			},
 		);
