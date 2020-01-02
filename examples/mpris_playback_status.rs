@@ -4,11 +4,25 @@
 // Connects to the session bus, enumerates all media players that implement MPRIS, and prints their playback status.
 
 fn main() -> Result<(), Error> {
-	let connection =
+	let mut connection =
 		dbus_pure::conn::Connection::new(
 			dbus_pure::conn::BusPath::Session,
 			dbus_pure::conn::SaslAuthType::Uid,
 		)?;
+
+	// For testing
+	if let Some(s) = std::env::var_os("FORCE_WRITE_ENDIANNESS") {
+		if s == "big" {
+			connection.set_write_endianness(dbus_pure::Endianness::Big);
+		}
+		else if s == "little" {
+			connection.set_write_endianness(dbus_pure::Endianness::Little);
+		}
+		else {
+			return Err(format!(r#"invalid value of FORCE_WRITE_ENDIANNESS env var {:?}, expected "big" or "little""#, s).into());
+		}
+	}
+
 	let mut client = dbus_pure::client::Client::new(connection)?;
 
 	// List all names by calling the `org.freedesktop.DBus.ListNames` method

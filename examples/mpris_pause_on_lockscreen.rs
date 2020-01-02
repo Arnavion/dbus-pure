@@ -2,6 +2,7 @@
 #![deny(clippy::all, clippy::pedantic)]
 #![allow(
 	clippy::default_trait_access,
+	clippy::too_many_lines,
 	clippy::unneeded_field_pattern,
 )]
 
@@ -10,11 +11,25 @@
 // When the screen is unlocked, it unpauses all the players it had paused.
 
 fn main() -> Result<(), Error> {
-	let connection =
+	let mut connection =
 		dbus_pure::conn::Connection::new(
 			dbus_pure::conn::BusPath::Session,
 			dbus_pure::conn::SaslAuthType::Uid,
 		)?;
+
+	// For testing
+	if let Some(s) = std::env::var_os("FORCE_WRITE_ENDIANNESS") {
+		if s == "big" {
+			connection.set_write_endianness(dbus_pure::Endianness::Big);
+		}
+		else if s == "little" {
+			connection.set_write_endianness(dbus_pure::Endianness::Little);
+		}
+		else {
+			return Err(format!(r#"invalid value of FORCE_WRITE_ENDIANNESS env var {:?}, expected "big" or "little""#, s).into());
+		}
+	}
+
 	let mut client = dbus_pure::client::Client::new(connection)?;
 
 	// Add a match for all screen lock and unlock events. These events manifest as the `org.freedesktop.ScreenSaver.ActiveChanged` signal

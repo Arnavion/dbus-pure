@@ -67,3 +67,64 @@ pub(crate) mod ser;
 pub mod std2;
 
 pub mod types;
+
+#[derive(Clone, Copy, Debug)]
+pub enum Endianness {
+	Big,
+	Little,
+}
+
+macro_rules! endianness_from_bytes {
+	($($fn:ident -> $ty:ty,)*) => {
+		impl Endianness {
+			$(
+				fn $fn(self, bytes: [u8; std::mem::size_of::<$ty>()]) -> $ty {
+					match self {
+						Endianness::Big => <$ty>::from_be_bytes(bytes),
+						Endianness::Little => <$ty>::from_le_bytes(bytes),
+					}
+				}
+			)*
+		}
+	};
+}
+
+endianness_from_bytes! {
+	i16_from_bytes -> i16,
+	i32_from_bytes -> i32,
+	i64_from_bytes -> i64,
+
+	u16_from_bytes -> u16,
+	u32_from_bytes -> u32,
+	u64_from_bytes -> u64,
+
+	f64_from_bytes -> f64,
+}
+
+
+macro_rules! endianness_to_bytes {
+	($($fn:ident -> $ty:ty,)*) => {
+		impl Endianness {
+			$(
+				fn $fn(self, value: $ty) -> [u8; std::mem::size_of::<$ty>()] {
+					match self {
+						Endianness::Big => <$ty>::to_be_bytes(value),
+						Endianness::Little => <$ty>::to_le_bytes(value),
+					}
+				}
+			)*
+		}
+	};
+}
+
+endianness_to_bytes! {
+	i16_to_bytes -> i16,
+	i32_to_bytes -> i32,
+	i64_to_bytes -> i64,
+
+	u16_to_bytes -> u16,
+	u32_to_bytes -> u32,
+	u64_to_bytes -> u64,
+
+	f64_to_bytes -> f64,
+}

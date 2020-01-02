@@ -2,6 +2,7 @@
 pub(crate) struct Serializer<'ser> {
 	buf: &'ser mut Vec<u8>,
 	start: usize,
+	endianness: crate::Endianness,
 
 	// Used by SeqSerializer to know how much padding was inserted before the first element of the array.
 	// Each serializer appends a new value into the Vec when it's created, and pops it out when it's done.
@@ -10,9 +11,10 @@ pub(crate) struct Serializer<'ser> {
 }
 
 impl<'ser> Serializer<'ser> {
-	pub(crate) fn new(buf: &'ser mut Vec<u8>) -> Self {
+	pub(crate) fn new(buf: &'ser mut Vec<u8>, endianness: crate::Endianness) -> Self {
 		let start = buf.len();
 		Serializer {
+			endianness,
 			buf,
 			start,
 			array_start_paddings: vec![],
@@ -43,10 +45,8 @@ impl<'ser, 'a> serde::Serializer for &'a mut Serializer<'ser> {
 	type SerializeStructVariant = StructVariantSerializer;
 
 	fn serialize_bool(self, v: bool) -> Result<Self::Ok, Self::Error> {
-		self.pad_to(4);
 		let v: u32 = if v { 1 } else { 0 };
-		self.buf.extend_from_slice(&v.to_le_bytes());
-		Ok(())
+		self.serialize_u32(v)
 	}
 
 	fn serialize_i8(self, _v: i8) -> Result<Self::Ok, Self::Error> {
@@ -55,19 +55,19 @@ impl<'ser, 'a> serde::Serializer for &'a mut Serializer<'ser> {
 
 	fn serialize_i16(self, v: i16) -> Result<Self::Ok, Self::Error> {
 		self.pad_to(2);
-		self.buf.extend_from_slice(&v.to_le_bytes());
+		self.buf.extend_from_slice(&self.endianness.i16_to_bytes(v));
 		Ok(())
 	}
 
 	fn serialize_i32(self, v: i32) -> Result<Self::Ok, Self::Error> {
 		self.pad_to(4);
-		self.buf.extend_from_slice(&v.to_le_bytes());
+		self.buf.extend_from_slice(&self.endianness.i32_to_bytes(v));
 		Ok(())
 	}
 
 	fn serialize_i64(self, v: i64) -> Result<Self::Ok, Self::Error> {
 		self.pad_to(8);
-		self.buf.extend_from_slice(&v.to_le_bytes());
+		self.buf.extend_from_slice(&self.endianness.i64_to_bytes(v));
 		Ok(())
 	}
 
@@ -78,19 +78,19 @@ impl<'ser, 'a> serde::Serializer for &'a mut Serializer<'ser> {
 
 	fn serialize_u16(self, v: u16) -> Result<Self::Ok, Self::Error> {
 		self.pad_to(2);
-		self.buf.extend_from_slice(&v.to_le_bytes());
+		self.buf.extend_from_slice(&self.endianness.u16_to_bytes(v));
 		Ok(())
 	}
 
 	fn serialize_u32(self, v: u32) -> Result<Self::Ok, Self::Error> {
 		self.pad_to(4);
-		self.buf.extend_from_slice(&v.to_le_bytes());
+		self.buf.extend_from_slice(&self.endianness.u32_to_bytes(v));
 		Ok(())
 	}
 
 	fn serialize_u64(self, v: u64) -> Result<Self::Ok, Self::Error> {
 		self.pad_to(8);
-		self.buf.extend_from_slice(&v.to_le_bytes());
+		self.buf.extend_from_slice(&self.endianness.u64_to_bytes(v));
 		Ok(())
 	}
 
@@ -100,7 +100,7 @@ impl<'ser, 'a> serde::Serializer for &'a mut Serializer<'ser> {
 
 	fn serialize_f64(self, v: f64) -> Result<Self::Ok, Self::Error> {
 		self.pad_to(8);
-		self.buf.extend_from_slice(&v.to_le_bytes());
+		self.buf.extend_from_slice(&self.endianness.f64_to_bytes(v));
 		Ok(())
 	}
 
@@ -218,7 +218,7 @@ impl<'ser, 'a> serde::ser::SerializeSeq for SeqSerializer<'ser, 'a> {
 
 		let data_len: u32 = std::convert::TryInto::try_into(data_end_pos - data_start_pos).map_err(serde::ser::Error::custom)?;
 
-		self.inner.buf[self.data_len_pos..(self.data_len_pos + 4)].copy_from_slice(&data_len.to_le_bytes());
+		self.inner.buf[self.data_len_pos..(self.data_len_pos + 4)].copy_from_slice(&self.inner.endianness.u32_to_bytes(data_len));
 
 		Ok(())
 	}

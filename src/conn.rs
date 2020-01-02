@@ -5,6 +5,7 @@ pub struct Connection {
 	read_end: usize,
 	writer: std::os::unix::net::UnixStream,
 	write_buf: Vec<u8>,
+	write_endianness: crate::Endianness,
 	server_guid: Vec<u8>,
 }
 
@@ -108,12 +109,16 @@ impl Connection {
 		writer.write_all(b"BEGIN\r\n").map_err(ConnectError::Authenticate)?;
 		writer.flush().map_err(ConnectError::Authenticate)?;
 
+		// Default to target endianness
+		let write_endianness = if cfg!(target_endian = "big") { crate::Endianness::Big } else { crate::Endianness::Little };
+
 		Ok(Connection {
 			reader,
 			read_buf,
 			read_end: 0,
 			writer,
 			write_buf,
+			write_endianness,
 			server_guid,
 		})
 	}
@@ -133,7 +138,7 @@ impl Connection {
 	pub fn send(&mut self, header: &mut crate::types::MessageHeader<'_>, body: Option<&crate::types::Variant<'_>>) -> Result<(), SendError> {
 		use std::io::Write;
 
-		let () = crate::types::message::serialize_message(header, body, &mut self.write_buf).map_err(SendError::Serialize)?;
+		let () = crate::types::message::serialize_message(header, body, &mut self.write_buf, self.write_endianness).map_err(SendError::Serialize)?;
 
 		let _ = self.writer.write_all(&self.write_buf).map_err(SendError::Io)?;
 		self.write_buf.clear();
@@ -171,6 +176,13 @@ impl Connection {
 				Err(err) => return Err(RecvError::Deserialize(err)),
 			}
 		}
+	}
+
+	/// Set the endianness used for sending messages.
+	///
+	/// By default, the connection uses the target endianness. Use this method to override that.
+	pub fn set_write_endianness(&mut self, endianness: crate::Endianness) {
+		self.write_endianness = endianness;
 	}
 }
 

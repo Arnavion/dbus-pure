@@ -18,7 +18,11 @@ pub struct MessageHeader<'a> {
 }
 
 pub(crate) fn deserialize_message(buf: &[u8]) -> Result<(MessageHeader<'static>, Option<crate::types::Variant<'static>>, usize), crate::de::DeserializeError> {
-	let mut deserializer = crate::de::Deserializer::new(buf, 0);
+	// Arbitrarily pick `Endianness::Little` to initialize the deserializer. It'll be overridden as soon as the endianness marker is parsed.
+	let mut deserializer = crate::de::Deserializer::new(buf, 0, crate::Endianness::Little);
+
+	let EndiannessMarker(endianness) = serde::Deserialize::deserialize(&mut deserializer)?;
+	deserializer.set_endianness(endianness);
 
 	let message_header: MessageHeader<'static> = serde::Deserialize::deserialize(&mut deserializer)?;
 
@@ -43,7 +47,7 @@ pub(crate) fn deserialize_message(buf: &[u8]) -> Result<(MessageHeader<'static>,
 				.ok_or_else(|| serde::de::Error::custom("message has non-empty body but not signature field in its header"))?;
 			let deserialize_seed = crate::types::VariantDeserializeSeed::new(signature);
 
-			let mut deserializer = crate::de::Deserializer::new(&buf[..body_end_pos], body_start_pos);
+			let mut deserializer = crate::de::Deserializer::new(&buf[..body_end_pos], body_start_pos, endianness);
 
 			let message_body: crate::types::Variant<'static> = serde::de::DeserializeSeed::deserialize(deserialize_seed, &mut deserializer)?;
 
@@ -60,6 +64,7 @@ pub(crate) fn serialize_message(
 	header: &mut MessageHeader<'_>,
 	body: Option<&crate::types::Variant<'_>>,
 	buf: &mut Vec<u8>,
+	endianness: crate::Endianness,
 ) -> Result<(), crate::ser::SerializeError> {
 	use serde::Serialize;
 
@@ -90,7 +95,7 @@ pub(crate) fn serialize_message(
 	let body =
 		if let Some(body) = body {
 			let mut body_serialized = vec![];
-			let mut body_serializer = crate::ser::Serializer::new(&mut body_serialized);
+			let mut body_serializer = crate::ser::Serializer::new(&mut body_serialized, endianness);
 			body.serialize(&mut body_serializer)?;
 			drop(body_serializer);
 
@@ -109,15 +114,23 @@ pub(crate) fn serialize_message(
 
 		header_fields.push(MessageHeaderField::Signature(body_signature));
 
-		let mut message_serializer = crate::ser::Serializer::new(buf);
+		let mut message_serializer = crate::ser::Serializer::new(buf, endianness);
+
+		EndiannessMarker(endianness).serialize(&mut message_serializer)?;
+
 		header.serialize(&mut message_serializer)?;
+
 		message_serializer.pad_to(8);
 
 		buf.extend_from_slice(&body_serialized);
 	}
 	else {
-		let mut message_serializer = crate::ser::Serializer::new(buf);
+		let mut message_serializer = crate::ser::Serializer::new(buf, endianness);
+
+		EndiannessMarker(endianness).serialize(&mut message_serializer)?;
+
 		header.serialize(&mut message_serializer)?;
+
 		message_serializer.pad_to(8);
 	}
 
@@ -136,11 +149,6 @@ impl<'de> serde::Deserialize<'de> for MessageHeader<'static> {
 			}
 
 			fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error> where A: serde::de::SeqAccess<'de> {
-				let endianness: u8 = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("endianness"))?;
-				if endianness != b'l' {
-					return Err(serde::de::Error::invalid_value(serde::de::Unexpected::Unsigned(endianness.into()), &"'l'"));
-				}
-
 				let r#type: u8 = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("type"))?;
 
 				let flags: MessageFlags = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("flags"))?;
@@ -177,9 +185,7 @@ impl serde::Serialize for MessageHeader<'_> {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
 		use serde::ser::SerializeTuple;
 
-		let mut serializer = serializer.serialize_tuple(7)?;
-
-		serializer.serialize_element(&b'l')?;
+		let mut serializer = serializer.serialize_tuple(6)?;
 
 		serializer.serialize_element(&self.r#type)?;
 
@@ -553,5 +559,29 @@ impl serde::Serialize for MessageHeaderField<'_> {
 		serializer.serialize_field("value", &value)?;
 
 		serializer.end()
+	}
+}
+
+struct EndiannessMarker(crate::Endianness);
+
+impl<'de> serde::Deserialize<'de> for EndiannessMarker {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
+		let endianness_marker: u8 = serde::Deserialize::deserialize(deserializer)?;
+		let endianness = match endianness_marker {
+			b'B' => crate::Endianness::Big,
+			b'l' => crate::Endianness::Little,
+			endianness_marker => return Err(serde::de::Error::invalid_value(serde::de::Unexpected::Unsigned(endianness_marker.into()), &"b'B' or b'l'")),
+		};
+		Ok(EndiannessMarker(endianness))
+	}
+}
+
+impl serde::Serialize for EndiannessMarker {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
+		let endianness_marker: u8 = match self.0 {
+			crate::Endianness::Big => b'B',
+			crate::Endianness::Little => b'l',
+		};
+		endianness_marker.serialize(serializer)
 	}
 }

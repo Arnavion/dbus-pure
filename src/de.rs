@@ -2,13 +2,15 @@
 pub(crate) struct Deserializer<'de> {
 	buf: &'de [u8],
 	pos: usize,
+	endianness: crate::Endianness,
 }
 
 impl<'de> Deserializer<'de> {
-	pub(crate) fn new(buf: &'de [u8], pos: usize) -> Self {
+	pub(crate) fn new(buf: &'de [u8], pos: usize, endianness: crate::Endianness) -> Self {
 		Deserializer {
 			buf,
 			pos,
+			endianness,
 		}
 	}
 
@@ -32,6 +34,10 @@ impl<'de> Deserializer<'de> {
 	pub(crate) fn pos(&self) -> usize {
 		self.pos
 	}
+
+	pub(crate) fn set_endianness(&mut self, endianness: crate::Endianness) {
+		self.endianness = endianness;
+	}
 }
 
 impl<'de> serde::Deserializer<'de> for &'_ mut Deserializer<'de> {
@@ -52,7 +58,7 @@ impl<'de> serde::Deserializer<'de> for &'_ mut Deserializer<'de> {
 		self.pos += 4;
 
 		let value: &[_; 4] = std::convert::TryInto::try_into(value).expect("infallible");
-		let value = u32::from_le_bytes(*value);
+		let value = self.endianness.u32_from_bytes(*value);
 		match value {
 			0 => visitor.visit_bool(false),
 			1 => visitor.visit_bool(true),
@@ -75,7 +81,7 @@ impl<'de> serde::Deserializer<'de> for &'_ mut Deserializer<'de> {
 		self.pos += 2;
 
 		let value: &[_; 2] = std::convert::TryInto::try_into(value).expect("infallible");
-		let value = i16::from_le_bytes(*value);
+		let value = self.endianness.i16_from_bytes(*value);
 		visitor.visit_i16(value)
 	}
 
@@ -90,7 +96,7 @@ impl<'de> serde::Deserializer<'de> for &'_ mut Deserializer<'de> {
 		self.pos += 4;
 
 		let value: &[_; 4] = std::convert::TryInto::try_into(value).expect("infallible");
-		let value = i32::from_le_bytes(*value);
+		let value = self.endianness.i32_from_bytes(*value);
 		visitor.visit_i32(value)
 	}
 
@@ -105,7 +111,7 @@ impl<'de> serde::Deserializer<'de> for &'_ mut Deserializer<'de> {
 		self.pos += 8;
 
 		let value: &[_; 8] = std::convert::TryInto::try_into(value).expect("infallible");
-		let value = i64::from_le_bytes(*value);
+		let value = self.endianness.i64_from_bytes(*value);
 		visitor.visit_i64(value)
 	}
 
@@ -131,7 +137,7 @@ impl<'de> serde::Deserializer<'de> for &'_ mut Deserializer<'de> {
 		self.pos += 2;
 
 		let value: &[_; 2] = std::convert::TryInto::try_into(value).expect("infallible");
-		let value = u16::from_le_bytes(*value);
+		let value = self.endianness.u16_from_bytes(*value);
 		visitor.visit_u16(value)
 	}
 
@@ -146,7 +152,7 @@ impl<'de> serde::Deserializer<'de> for &'_ mut Deserializer<'de> {
 		self.pos += 4;
 
 		let value: &[_; 4] = std::convert::TryInto::try_into(value).expect("infallible");
-		let value = u32::from_le_bytes(*value);
+		let value = self.endianness.u32_from_bytes(*value);
 		visitor.visit_u32(value)
 	}
 
@@ -161,7 +167,7 @@ impl<'de> serde::Deserializer<'de> for &'_ mut Deserializer<'de> {
 		self.pos += 8;
 
 		let value: &[_; 8] = std::convert::TryInto::try_into(value).expect("infallible");
-		let value = u64::from_le_bytes(*value);
+		let value = self.endianness.u64_from_bytes(*value);
 		visitor.visit_u64(value)
 	}
 
@@ -180,7 +186,7 @@ impl<'de> serde::Deserializer<'de> for &'_ mut Deserializer<'de> {
 		self.pos += 8;
 
 		let value: &[_; 8] = std::convert::TryInto::try_into(value).expect("infallible");
-		let value = f64::from_le_bytes(*value);
+		let value = self.endianness.f64_from_bytes(*value);
 		visitor.visit_f64(value)
 	}
 

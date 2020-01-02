@@ -688,16 +688,19 @@ mod tests {
 			expected_serialized: &[u8],
 			expected_variant: super::Variant<'_>,
 		) {
+			// Hard-coded test inputs are for little-endian architecture.
+			assert!(cfg!(target_endian = "little"));
+
 			let signature: crate::types::Signature = signature.parse().unwrap();
 
 			let deserialize_seed = crate::types::VariantDeserializeSeed::new(&signature);
 
-			let mut deserializer = crate::de::Deserializer::new(expected_serialized, 0);
+			let mut deserializer = crate::de::Deserializer::new(expected_serialized, 0, crate::Endianness::Little);
 			let actual_variant: super::Variant<'_> = serde::de::DeserializeSeed::deserialize(deserialize_seed, &mut deserializer).unwrap();
 			assert_eq!(expected_variant, actual_variant);
 
 			let mut actual_serialized = vec![];
-			let mut serializer = crate::ser::Serializer::new(&mut actual_serialized);
+			let mut serializer = crate::ser::Serializer::new(&mut actual_serialized, crate::Endianness::Little);
 			serde::Serialize::serialize(&actual_variant, &mut serializer).unwrap();
 			assert_eq!(expected_serialized, &*actual_serialized);
 		}
