@@ -197,7 +197,10 @@ impl serde::Serialize for MessageHeader<'_> {
 
 		serializer.serialize_element(&self.serial)?;
 
-		serializer.serialize_element(&self.fields)?;
+		serializer.serialize_element(&crate::types::Slice {
+			inner: &self.fields,
+			alignment: 1,
+		})?;
 
 		serializer.end()
 	}

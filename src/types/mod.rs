@@ -56,6 +56,32 @@ pub enum Signature {
 	Variant,
 }
 
+impl Signature {
+	fn alignment(&self) -> usize {
+		#[allow(clippy::match_same_arms)]
+		match self {
+			Signature::Array { .. } => 4,
+			Signature::Bool => 4,
+			Signature::DictEntry { .. } => 8,
+			Signature::F64 => 8,
+			Signature::I16 => 2,
+			Signature::I32 => 4,
+			Signature::I64 => 8,
+			Signature::ObjectPath => 4,
+			Signature::Signature => 1,
+			Signature::String => 4,
+			Signature::Struct { .. } => 8,
+			Signature::Tuple { .. } => 1,
+			Signature::U8 => 1,
+			Signature::U16 => 2,
+			Signature::U32 => 4,
+			Signature::U64 => 8,
+			Signature::UnixFd => 4,
+			Signature::Variant => 1,
+		}
+	}
+}
+
 impl std::fmt::Display for Signature {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
@@ -297,5 +323,22 @@ impl serde::Serialize for UsizeAsU32 {
 	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
 		let value: u32 = std::convert::TryInto::try_into(self.0).map_err(serde::ser::Error::custom)?;
 		value.serialize(serializer)
+	}
+}
+
+pub(crate) struct Slice<'a, T> {
+	pub(crate) inner: &'a [T],
+	pub(crate) alignment: usize,
+}
+
+impl<T> serde::Serialize for Slice<'_, T> where T: serde::Serialize {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
+		use serde::ser::SerializeSeq;
+
+		let mut serializer = serializer.serialize_seq(Some(self.alignment))?;
+		for element in self.inner {
+			serializer.serialize_element(element)?;
+		}
+		serializer.end()
 	}
 }

@@ -290,41 +290,41 @@ impl serde::Serialize for Variant<'_> {
 		use serde::ser::{SerializeStruct, SerializeTuple};
 
 		match self {
-			Variant::Array { element_signature: _, elements } =>
-				elements.serialize(serializer),
+			Variant::Array { element_signature, elements } =>
+				(crate::types::Slice { inner: elements, alignment: element_signature.alignment() }).serialize(serializer),
 
 			Variant::ArrayBool(elements) =>
-				elements.serialize(serializer),
+				(crate::types::Slice { inner: elements, alignment: 4 }).serialize(serializer),
 
-			Variant::ArrayF64(elements) => {
-				elements.serialize(serializer),
+			Variant::ArrayF64(elements) =>
+				(crate::types::Slice { inner: elements, alignment: 8 }).serialize(serializer),
 
 			Variant::ArrayI16(elements) =>
-				elements.serialize(serializer),
+				(crate::types::Slice { inner: elements, alignment: 2 }).serialize(serializer),
 
 			Variant::ArrayI32(elements) =>
-				elements.serialize(serializer),
+				(crate::types::Slice { inner: elements, alignment: 4 }).serialize(serializer),
 
 			Variant::ArrayI64(elements) =>
-				elements.serialize(serializer),
+				(crate::types::Slice { inner: elements, alignment: 8 }).serialize(serializer),
 
 			Variant::ArrayString(elements) =>
-				elements.serialize(serializer),
+				(crate::types::Slice { inner: elements, alignment: 4 }).serialize(serializer),
 
 			Variant::ArrayU8(elements) =>
-				elements.serialize(serializer),
+				(crate::types::Slice { inner: elements, alignment: 1 }).serialize(serializer),
 
 			Variant::ArrayU16(elements) =>
-				elements.serialize(serializer),
+				(crate::types::Slice { inner: elements, alignment: 2 }).serialize(serializer),
 
 			Variant::ArrayU32(elements) =>
-				elements.serialize(serializer),
+				(crate::types::Slice { inner: elements, alignment: 4 }).serialize(serializer),
 
 			Variant::ArrayU64(elements) =>
-				elements.serialize(serializer),
+				(crate::types::Slice { inner: elements, alignment: 8 }).serialize(serializer),
 
 			Variant::ArrayUnixFd(elements) =>
-				elements.serialize(serializer),
+				(crate::types::Slice { inner: elements, alignment: 4 }).serialize(serializer),
 
 			Variant::Bool(value) =>
 				value.serialize(serializer),
@@ -720,6 +720,62 @@ mod tests {
 			serde::Serialize::serialize(&actual_variant, &mut serializer).unwrap();
 			assert_eq!(expected_serialized, &*actual_serialized);
 		}
+
+		test(
+			"at",
+			b"\
+				\x08\x00\x00\x00\
+				\x00\x00\x00\x00\
+				\x08\x07\x06\x05\
+				\x04\x03\x02\x01\
+			",
+			super::Variant::ArrayU64((&[
+				0x01020304_05060708_u64,
+			][..]).into()),
+		);
+
+		test(
+			"yat",
+			b"\
+				\x05\
+				\x00\x00\x00\
+				\x08\x00\x00\x00\
+				\x08\x07\x06\x05\
+				\x04\x03\x02\x01\
+			",
+			super::Variant::Tuple {
+				elements: (&[
+					super::Variant::U8(0x05),
+					super::Variant::ArrayU64((&[
+						0x01020304_05060708_u64,
+					][..]).into()),
+				][..]).into(),
+			},
+		);
+
+		test(
+			"at",
+			b"\
+				\x00\x00\x00\x00\
+				\x00\x00\x00\x00\
+			",
+			super::Variant::ArrayU64((&[][..]).into()),
+		);
+
+		test(
+			"yat",
+			b"\
+				\x05\
+				\x00\x00\x00\
+				\x00\x00\x00\x00\
+			",
+			super::Variant::Tuple {
+				elements: (&[
+					super::Variant::U8(0x05),
+					super::Variant::ArrayU64((&[][..]).into()),
+				][..]).into(),
+			},
+		);
 
 		test(
 			"au",

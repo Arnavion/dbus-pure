@@ -117,10 +117,3 @@ impl<'de, T> serde::Deserialize<'de> for CowSlice<'_, T> where T: serde::Deseria
 		Ok(CowSlice::Owned(v))
 	}
 }
-
-impl<T> serde::Serialize for CowSlice<'_, T> where T: serde::Serialize {
-	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
-		let s: &[T] = &*self;
-		s.serialize(serializer)
-	}
-}
