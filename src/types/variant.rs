@@ -158,6 +158,22 @@ impl<'a> Variant<'a> {
 		}
 	}
 
+	/// Convenience function to view this `Variant` as a `u32` if it is one.
+	pub fn as_u32(&self) -> Option<u32> {
+		match self {
+			Variant::U32(value) => Some(*value),
+			_ => None,
+		}
+	}
+
+	/// Convenience function to convert this `Variant` into a `u32` if it is one, else return the original `Variant`.
+	pub fn into_u32(self) -> Result<u32, Self> {
+		match self {
+			Variant::U32(value) => Ok(value),
+			other => Err(other),
+		}
+	}
+
 	/// Convenience function to view this `Variant` as its inner `Variant` if it has one.
 	pub fn as_variant<'b>(&'b self) -> Option<&'b Variant<'a>> {
 		match self {
