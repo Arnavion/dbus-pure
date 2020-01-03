@@ -15,6 +15,10 @@ pub enum BusPath<'a> {
 	/// The session bus. Its path will be determined from the `DBUS_SESSION_BUS_ADDRESS` environment variable.
 	Session,
 
+	/// The system bus. Its path will be determined from the `DBUS_SYSTEM_BUS_ADDRESS` environment variable if it exists,
+	/// with a fallback to `/var/run/dbus/system_bus_socket` if it doesn't.
+	System,
+
 	/// A unix domain socket file at the specified filesystem path.
 	UnixSocketFile(&'a std::path::Path),
 }
@@ -41,14 +45,34 @@ impl Connection {
 
 		let stream = match bus_path {
 			BusPath::Session => {
-				let session_bus_address = std::env::var_os("DBUS_SESSION_BUS_ADDRESS").ok_or_else(|| ConnectError::SessionBusEnvVar(None))?;
+				let bus_address = std::env::var_os("DBUS_SESSION_BUS_ADDRESS").ok_or_else(|| ConnectError::MissingSessionBusEnvVar)?;
 				let bus_path: &std::ffi::OsStr = {
-					let session_bus_address_bytes = std::os::unix::ffi::OsStrExt::as_bytes(&*session_bus_address);
-					if session_bus_address_bytes.starts_with(b"unix:path=") {
-						std::os::unix::ffi::OsStrExt::from_bytes(&session_bus_address_bytes["unix:path=".len()..])
+					let bus_address_bytes = std::os::unix::ffi::OsStrExt::as_bytes(&*bus_address);
+					if bus_address_bytes.starts_with(b"unix:path=") {
+						std::os::unix::ffi::OsStrExt::from_bytes(&bus_address_bytes["unix:path=".len()..])
 					}
 					else {
-						return Err(ConnectError::SessionBusEnvVar(Some(session_bus_address)));
+						return Err(ConnectError::UnsupportedTransport(bus_address));
+					}
+				};
+				let bus_path = std::path::Path::new(bus_path);
+				let stream =
+					std::os::unix::net::UnixStream::connect(bus_path)
+					.map_err(|err| ConnectError::Connect { bus_path: bus_path.to_owned(), err, })?;
+				stream
+			},
+
+			BusPath::System => {
+				let bus_address =
+					std::env::var_os("DBUS_SYSTEM_BUS_ADDRESS")
+					.unwrap_or_else(|| "unix:path=/var/run/dbus/system_bus_socket".into());
+				let bus_path: &std::ffi::OsStr = {
+					let bus_address_bytes = std::os::unix::ffi::OsStrExt::as_bytes(&*bus_address);
+					if bus_address_bytes.starts_with(b"unix:path=") {
+						std::os::unix::ffi::OsStrExt::from_bytes(&bus_address_bytes["unix:path=".len()..])
+					}
+					else {
+						return Err(ConnectError::UnsupportedTransport(bus_address));
 					}
 				};
 				let bus_path = std::path::Path::new(bus_path);
@@ -196,7 +220,9 @@ pub enum ConnectError {
 		err: std::io::Error,
 	},
 
-	SessionBusEnvVar(Option<std::ffi::OsString>),
+	MissingSessionBusEnvVar,
+
+	UnsupportedTransport(std::ffi::OsString),
 }
 
 impl std::fmt::Display for ConnectError {
@@ -204,8 +230,8 @@ impl std::fmt::Display for ConnectError {
 		match self {
 			ConnectError::Authenticate(_) => f.write_str("could not authenticate with bus"),
 			ConnectError::Connect { bus_path, err: _ } => write!(f, "could not connect to bus path {}", bus_path.display()),
-			ConnectError::SessionBusEnvVar(None) => f.write_str("the DBUS_SESSION_BUS_ADDRESS env var is not set"),
-			ConnectError::SessionBusEnvVar(Some(value)) => write!(f, "the DBUS_SESSION_BUS_ADDRESS env var is malformed: {:?}", value),
+			ConnectError::MissingSessionBusEnvVar => f.write_str("the DBUS_SESSION_BUS_ADDRESS env var is not set"),
+			ConnectError::UnsupportedTransport(value) => write!(f, "the bus path {:?} has an unsupported transport", value),
 		}
 	}
 }
@@ -216,7 +242,8 @@ impl std::error::Error for ConnectError {
 		match self {
 			ConnectError::Authenticate(err) => Some(err),
 			ConnectError::Connect { bus_path: _, err } => Some(err),
-			ConnectError::SessionBusEnvVar(_) => None,
+			ConnectError::MissingSessionBusEnvVar => None,
+			ConnectError::UnsupportedTransport(_) => None,
 		}
 	}
 }
