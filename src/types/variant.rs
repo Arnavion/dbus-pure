@@ -17,7 +17,7 @@ pub enum Variant<'a> {
 	ArrayBool(std::borrow::Cow<'a, [bool]>),
 
 	/// Simpler wrapper over a double array (`ad`) than the generic `Array` variant.
-	ArrayDouble(std::borrow::Cow<'a, [f64]>),
+	ArrayF64(std::borrow::Cow<'a, [f64]>),
 
 	/// Simpler wrapper over an i16 array (`an`) than the generic `Array` variant.
 	ArrayI16(std::borrow::Cow<'a, [i16]>),
@@ -52,7 +52,7 @@ pub enum Variant<'a> {
 		value: crate::std2::CowRef<'a, Variant<'a>>,
 	},
 
-	Double(f64),
+	F64(f64),
 
 	I16(i16),
 
@@ -182,8 +182,8 @@ impl<'a> Variant<'a> {
 			Variant::ArrayBool(_) =>
 				crate::types::Signature::Array { element: Box::new(crate::types::Signature::Bool) },
 
-			Variant::ArrayDouble(_) =>
-				crate::types::Signature::Array { element: Box::new(crate::types::Signature::Double) },
+			Variant::ArrayF64(_) =>
+				crate::types::Signature::Array { element: Box::new(crate::types::Signature::F64) },
 
 			Variant::ArrayI16(_) =>
 				crate::types::Signature::Array { element: Box::new(crate::types::Signature::I16) },
@@ -221,8 +221,8 @@ impl<'a> Variant<'a> {
 					value: Box::new(value.inner_signature()),
 				},
 
-			Variant::Double(_) =>
-				crate::types::Signature::Double,
+			Variant::F64(_) =>
+				crate::types::Signature::F64,
 
 			Variant::I16(_) =>
 				crate::types::Signature::I16,
@@ -280,7 +280,7 @@ impl serde::Serialize for Variant<'_> {
 			Variant::ArrayBool(elements) =>
 				elements.serialize(serializer),
 
-			Variant::ArrayDouble(elements) =>
+			Variant::ArrayF64(elements) => {
 				elements.serialize(serializer),
 
 			Variant::ArrayI16(elements) =>
@@ -320,7 +320,7 @@ impl serde::Serialize for Variant<'_> {
 				serializer.end()
 			},
 
-			Variant::Double(value) =>
+			Variant::F64(value) =>
 				value.serialize(serializer),
 
 			Variant::I16(value) =>
@@ -432,9 +432,9 @@ impl<'de, 'input, 'output> serde::de::DeserializeSeed<'de> for VariantDeserializ
 						Ok(Variant::DictEntry { key: Box::new(key).into(), value: Box::new(value).into() })
 					},
 
-					crate::types::Signature::Double => {
+					crate::types::Signature::F64 => {
 						let value = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("value"))?;
-						Ok(Variant::Double(value))
+						Ok(Variant::F64(value))
 					},
 
 					crate::types::Signature::I16 => {
@@ -555,12 +555,12 @@ impl<'de, 'input, 'output> serde::de::DeserializeSeed<'de> for VariantDeserializ
 								Ok(Variant::ArrayBool(elements.into()))
 							},
 
-							crate::types::Signature::Double => {
+							crate::types::Signature::F64 => {
 								let mut elements = vec![];
 								while let Some(element) = seq.next_element()? {
 									elements.push(element);
 								}
-								Ok(Variant::ArrayDouble(elements.into()))
+								Ok(Variant::ArrayF64(elements.into()))
 							},
 
 							crate::types::Signature::I16 => {
@@ -836,7 +836,7 @@ mod tests {
 		test(
 			"d",
 			b"\x58\x39\xB4\xC8\x76\xBE\xF3\x3F",
-			super::Variant::Double(1.234),
+			super::Variant::F64(1.234),
 		);
 
 		test(
@@ -849,7 +849,7 @@ mod tests {
 			super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
-					super::Variant::Double(1.234),
+					super::Variant::F64(1.234),
 				][..]).into(),
 			},
 		);

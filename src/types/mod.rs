@@ -39,7 +39,7 @@ pub enum Signature {
 	Array { element: Box<Signature> },
 	Bool,
 	DictEntry { key: Box<Signature>, value: Box<Signature> },
-	Double,
+	F64,
 	I16,
 	I32,
 	I64,
@@ -72,7 +72,7 @@ impl std::fmt::Display for Signature {
 				f.write_str("}")?;
 			},
 
-			Signature::Double =>
+			Signature::F64 =>
 				f.write_str("d")?,
 
 			Signature::I16 =>
@@ -142,7 +142,7 @@ impl std::str::FromStr for Signature {
 
 				'b' => Ok(Signature::Bool),
 
-				'd' => Ok(Signature::Double),
+				'd' => Ok(Signature::F64),
 
 				'g' => Ok(Signature::Signature),
 
