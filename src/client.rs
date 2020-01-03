@@ -36,6 +36,12 @@ impl Client {
 		Ok(client)
 	}
 
+	/// Override the name of this client. The given name will be used as the `MessageHeaderField::Sender` value
+	/// instead of the name returned by the `org.freedesktop.DBus.Hello` handshake.
+	pub fn set_name(&mut self, name: String) {
+		self.name = Some(name);
+	}
+
 	/// Send a message with the given header and body.
 	///
 	/// - The header serial will be overwritten to a unique serial number, and does not need to be set to any specific value by the caller.
