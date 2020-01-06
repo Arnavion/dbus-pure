@@ -36,19 +36,21 @@
 //!
 //! // List all names by calling the `org.freedesktop.DBus.ListNames` method
 //! // on the `/org/freedesktop/DBus` object at the destination `org.freedesktop.DBus`.
-//! let names =
-//!     client.method_call(
-//!         "org.freedesktop.DBus",
-//!         dbus_pure::types::ObjectPath("/org/freedesktop/DBus".into()),
-//!         "org.freedesktop.DBus",
-//!         "ListNames",
-//!         None,
-//!     )?
-//!     .ok_or(None)
-//!     .and_then(|body| body.into_array_string().map_err(Some))
-//!     .map_err(|body| format!("ListNames response failed with {:#?}", body))?;
+//! let names = {
+//!     let body =
+//!         client.method_call(
+//!             "org.freedesktop.DBus",
+//!             dbus_pure::types::ObjectPath("/org/freedesktop/DBus".into()),
+//!             "org.freedesktop.DBus",
+//!             "ListNames",
+//!             None,
+//!         )?
+//!         .ok_or("ListNames response does not have a body")?;
+//!     let body: Vec<String> = serde::Deserialize::deserialize(body)?;
+//!     body
+//! };
 //!
-//! for name in names.into_iter() {
+//! for name in names {
 //!     println!("{}", name);
 //! }
 //! #

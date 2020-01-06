@@ -333,6 +333,7 @@ impl<'de, 'a> serde::de::MapAccess<'de> for StructDeserializer<'de, 'a> {
 /// An error from deserializing a value using the D-Bus binary protocol.
 #[derive(Debug)]
 pub enum DeserializeError {
+	ArrayElementDoesntMatchSignature { expected: crate::types::Signature, actual: crate::types::Signature },
 	Custom(String),
 	DeserializeAnyNotSupported,
 	EndOfInput,
@@ -347,6 +348,10 @@ impl std::fmt::Display for DeserializeError {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		#[allow(clippy::match_same_arms)]
 		match self {
+			DeserializeError::ArrayElementDoesntMatchSignature { expected, actual } => write!(f,
+				"array has element signature {} but it contains an element with signature {}",
+				expected, actual,
+			),
 			DeserializeError::Custom(message) => f.write_str(message),
 			DeserializeError::DeserializeAnyNotSupported => f.write_str("deserialize_any is not supported"),
 			DeserializeError::EndOfInput => f.write_str("end of input"),
@@ -363,6 +368,7 @@ impl std::error::Error for DeserializeError {
 	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
 		#[allow(clippy::match_same_arms)]
 		match self {
+			DeserializeError::ArrayElementDoesntMatchSignature { expected: _, actual: _ } => None,
 			DeserializeError::Custom(_) => None,
 			DeserializeError::DeserializeAnyNotSupported => None,
 			DeserializeError::EndOfInput => None,

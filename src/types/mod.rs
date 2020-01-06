@@ -15,6 +15,8 @@ pub use variant::{
 	VariantDeserializeSeed,
 };
 
+mod variant_deserializer;
+
 /// An object path.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ObjectPath<'a>(pub std::borrow::Cow<'a, str>);

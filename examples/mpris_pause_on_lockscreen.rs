@@ -50,39 +50,41 @@ fn main() -> Result<(), Error> {
 	let mut players_to_resume: std::collections::BTreeSet<_> = Default::default();
 
 	loop {
-		let (header, body) = client.recv()?;
-		match header.r#type {
-			dbus_pure::types::MessageType::Signal { interface, member, path: _ }
-				if interface == "org.freedesktop.ScreenSaver" && member == "ActiveChanged" => (),
-			_ => continue,
-		}
+		let locked = {
+			let (header, body) = client.recv()?;
+			match header.r#type {
+				dbus_pure::types::MessageType::Signal { interface, member, path: _ }
+					if interface == "org.freedesktop.ScreenSaver" && member == "ActiveChanged" => (),
+				_ => continue,
+			}
 
-		let locked =
+			let body = body.ok_or("ActiveChanged signal does not have a body")?;
+			let body: bool = serde::Deserialize::deserialize(body)?;
 			body
-			.ok_or(None)
-			.and_then(|body| body.into_bool().map_err(Some))
-			.map_err(|body| format!("ActiveChanged signal failed with {:#?}", body))?;
+		};
 
 		println!("Screen is {}", if locked { "locked" } else { "unlocked" });
 
 		if locked {
 			// List all names by calling the `org.freedesktop.DBus.ListNames` method
 			// on the `/org/freedesktop/DBus` object at the destination `org.freedesktop.DBus`.
-			let names =
-				client.method_call(
-					"org.freedesktop.DBus",
-					dbus_pure::types::ObjectPath("/org/freedesktop/DBus".into()),
-					"org.freedesktop.DBus",
-					"ListNames",
-					None,
-				)?
-				.ok_or(None)
-				.and_then(|body| body.into_array_string().map_err(Some))
-				.map_err(|body| format!("ListNames response failed with {:#?}", body))?;
+			let names = {
+				let body =
+					client.method_call(
+						"org.freedesktop.DBus",
+						dbus_pure::types::ObjectPath("/org/freedesktop/DBus".into()),
+						"org.freedesktop.DBus",
+						"ListNames",
+						None,
+					)?
+					.ok_or("ListNames response does not have a body")?;
+				let body: Vec<String> = serde::Deserialize::deserialize(body)?;
+				body
+			};
 
 			// MPRIS media players have names that start with "org.mpris.MediaPlayer2."
 			let media_player_names =
-				names.into_owned().into_iter()
+				names.into_iter()
 				.filter(|object_name| object_name.starts_with("org.mpris.MediaPlayer2."));
 
 			for media_player_name in media_player_names {
@@ -93,23 +95,24 @@ fn main() -> Result<(), Error> {
 				//
 				// Properties in general are accessed by calling the `org.freedesktop.DBus.Properties.Get` method
 				// with two parameters - the interface name and the property name.
-				let playback_status =
-					client.method_call(
-						&media_player_name,
-						dbus_pure::types::ObjectPath("/org/mpris/MediaPlayer2".into()),
-						"org.freedesktop.DBus.Properties",
-						"Get",
-						Some(&dbus_pure::types::Variant::Tuple {
-							elements: (&[
-								dbus_pure::types::Variant::String("org.mpris.MediaPlayer2.Player".into()),
-								dbus_pure::types::Variant::String("PlaybackStatus".into()),
-							][..]).into(),
-						}),
-					)?
-					.ok_or(None)
-					.and_then(|body| body.into_variant().map_err(Some))
-					.and_then(|body| body.into_owned().into_string().map_err(Some))
-					.map_err(|body| format!("GetPlaybackStatus response failed with {:#?}", body))?;
+				let playback_status = {
+					let body =
+						client.method_call(
+							&media_player_name,
+							dbus_pure::types::ObjectPath("/org/mpris/MediaPlayer2".into()),
+							"org.freedesktop.DBus.Properties",
+							"Get",
+							Some(&dbus_pure::types::Variant::Tuple {
+								elements: (&[
+									dbus_pure::types::Variant::String("org.mpris.MediaPlayer2.Player".into()),
+									dbus_pure::types::Variant::String("PlaybackStatus".into()),
+								][..]).into(),
+							}),
+						)?
+						.ok_or("GetPlaybackStatus response does not have a body")?;
+					let body: String = serde::Deserialize::deserialize(body)?;
+					body
+				};
 
 				if playback_status == "Playing" {
 					println!("Pausing {} ...", media_player_name);
@@ -125,7 +128,7 @@ fn main() -> Result<(), Error> {
 
 					println!("{} is paused", media_player_name);
 
-					players_to_resume.insert(media_player_name.into_owned());
+					players_to_resume.insert(media_player_name);
 				}
 			}
 		}

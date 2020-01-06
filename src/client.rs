@@ -18,20 +18,20 @@ impl Client {
 			received_messages: Default::default(),
 		};
 
-		client.name = Some(
-			client.method_call(
-				"org.freedesktop.DBus",
-				crate::types::ObjectPath("/org/freedesktop/DBus".into()),
-				"org.freedesktop.DBus",
-				"Hello",
-				None,
-			)
-			.map_err(CreateClientError::Hello)?
-			.ok_or(None)
-			.and_then(|body| body.into_string().map_err(Some))
-			.map_err(CreateClientError::UnexpectedMessage)?
-			.into_owned()
-		);
+		client.name = Some({
+			let body =
+				client.method_call(
+					"org.freedesktop.DBus",
+					crate::types::ObjectPath("/org/freedesktop/DBus".into()),
+					"org.freedesktop.DBus",
+					"Hello",
+					None,
+				)
+				.map_err(CreateClientError::Hello)?
+				.ok_or_else(|| CreateClientError::UnexpectedMessage(serde::de::Error::custom("response does not have a body")))?;
+			let body: String = serde::Deserialize::deserialize(body).map_err(CreateClientError::UnexpectedMessage)?;
+			body
+		});
 
 		Ok(client)
 	}
@@ -176,14 +176,14 @@ impl std::fmt::Debug for Client {
 #[derive(Debug)]
 pub enum CreateClientError {
 	Hello(MethodCallError),
-	UnexpectedMessage(Option<crate::types::Variant<'static>>),
+	UnexpectedMessage(crate::de::DeserializeError),
 }
 
 impl std::fmt::Display for CreateClientError {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			CreateClientError::Hello(_) => f.write_str("could not complete hello"),
-			CreateClientError::UnexpectedMessage(body) => write!(f, "hello request failed with {:?}", body),
+			CreateClientError::UnexpectedMessage(_) => write!(f, "could not deserialize hello response"),
 		}
 	}
 }
@@ -192,7 +192,7 @@ impl std::error::Error for CreateClientError {
 	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
 		match self {
 			CreateClientError::Hello(err) => Some(err),
-			CreateClientError::UnexpectedMessage(_) => None,
+			CreateClientError::UnexpectedMessage(err) => Some(err),
 		}
 	}
 }

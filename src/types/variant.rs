@@ -100,29 +100,11 @@ impl<'a> Variant<'a> {
 		}
 	}
 
-	/// Convenience function to convert this `Variant` into a `CowSlice<'_, Variant>` if it an array and its elements have the given signature,
-	/// else return the original `Variant`.
-	pub fn into_array(self, expected_element_signature: &crate::types::Signature) -> Result<crate::std2::CowSlice<'a, Variant<'a>>, Self> {
-		match self {
-			Variant::Array { element_signature, elements } if element_signature == *expected_element_signature => Ok(elements),
-			other => Err(other),
-		}
-	}
-
 	/// Convenience function to view this `Variant` as a `&[Cow<'_, str>]` if it's an array of strings.
 	pub fn as_array_string<'b>(&'b self) -> Option<&'b [std::borrow::Cow<'a, str>]> {
 		match self {
 			Variant::ArrayString(elements) => Some(elements),
 			_ => None,
-		}
-	}
-
-	/// Convenience function to convert this `Variant` into a `CowSlice<'_, Cow<'_, str>>` if it's an array of strings,
-	/// else return the original `Variant.
-	pub fn into_array_string(self) -> Result<std::borrow::Cow<'a, [std::borrow::Cow<'a, str>]>, Self> {
-		match self {
-			Variant::ArrayString(elements) => Ok(elements),
-			other => Err(other),
 		}
 	}
 
@@ -134,27 +116,11 @@ impl<'a> Variant<'a> {
 		}
 	}
 
-	/// Convenience function to convert this `Variant` into a `bool` if it is one, else return the original `Variant`.
-	pub fn into_bool(self) -> Result<bool, Self> {
-		match self {
-			Variant::Bool(value) => Ok(value),
-			other => Err(other),
-		}
-	}
-
 	/// Convenience function to view this `Variant` as a `&str` if it's a string.
 	pub fn as_string(&self) -> Option<&str> {
 		match self {
 			Variant::String(value) => Some(value),
 			_ => None,
-		}
-	}
-
-	/// Convenience function to convert this `Variant` into a `String` if it is one, else return the original `Variant`.
-	pub fn into_string(self) -> Result<std::borrow::Cow<'a, str>, Self> {
-		match self {
-			Variant::String(value) => Ok(value),
-			other => Err(other),
 		}
 	}
 
@@ -166,27 +132,11 @@ impl<'a> Variant<'a> {
 		}
 	}
 
-	/// Convenience function to convert this `Variant` into a `u32` if it is one, else return the original `Variant`.
-	pub fn into_u32(self) -> Result<u32, Self> {
-		match self {
-			Variant::U32(value) => Ok(value),
-			other => Err(other),
-		}
-	}
-
 	/// Convenience function to view this `Variant` as its inner `Variant` if it has one.
 	pub fn as_variant<'b>(&'b self) -> Option<&'b Variant<'a>> {
 		match self {
 			Variant::Variant(value) => Some(value),
 			_ => None,
-		}
-	}
-
-	/// Convenience function to convert this `Variant` into an inner `Variant` if it has one, else return the original `Variant`.
-	pub fn into_variant(self) -> Result<crate::std2::CowRef<'a, Variant<'a>>, Self> {
-		match self {
-			Variant::Variant(value) => Ok(value),
-			other => Err(other),
 		}
 	}
 

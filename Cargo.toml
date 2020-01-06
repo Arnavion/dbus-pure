@@ -8,3 +8,6 @@ edition = "2018"
 [dependencies]
 libc = "0.2"
 serde = "1"
+
+[dev-dependencies]
+serde_derive = "1"
