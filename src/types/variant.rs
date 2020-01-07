@@ -612,7 +612,7 @@ impl<'de, 'input, 'output> serde::de::DeserializeSeed<'de> for VariantDeserializ
 					}
 				}
 
-				deserializer.deserialize_seq(Visitor(self.0, self.1))
+				deserializer.deserialize_tuple_struct("", self.0.alignment(), Visitor(self.0, self.1))
 			}
 		}
 
@@ -1246,6 +1246,52 @@ mod tests {
 					super::Variant::U32(0x01020304),
 					super::Variant::ObjectPath(crate::types::ObjectPath("/org/freedesktop/DBus".into())),
 					super::Variant::String("org.freedesktop.DBus".into()),
+				][..]).into(),
+			},
+		);
+
+		test(
+			"a(u)y",
+			b"\
+				\x00\x00\x00\x00\
+				\x00\x00\x00\x00\
+				\x03\
+			",
+			super::Variant::Tuple {
+				elements: (&[
+					super::Variant::Array {
+						element_signature: crate::types::Signature::Struct {
+							fields: vec![
+								crate::types::Signature::U32,
+							],
+						},
+						elements: (&[][..]).into(),
+					},
+					super::Variant::U8(3),
+				][..]).into(),
+			},
+		);
+
+		test(
+			"ya(u)y",
+			b"\
+				\x05\
+				\x00\x00\x00\
+				\x00\x00\x00\x00\
+				\x03\
+			",
+			super::Variant::Tuple {
+				elements: (&[
+					super::Variant::U8(5),
+					super::Variant::Array {
+						element_signature: crate::types::Signature::Struct {
+							fields: vec![
+								crate::types::Signature::U32,
+							],
+						},
+						elements: (&[][..]).into(),
+					},
+					super::Variant::U8(3),
 				][..]).into(),
 			},
 		);

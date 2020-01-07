@@ -111,9 +111,44 @@ impl<T> PartialEq<Self> for CowSlice<'_, T> where T: PartialEq<T> {
 	}
 }
 
-impl<'de, T> serde::Deserialize<'de> for CowSlice<'_, T> where T: serde::Deserialize<'de> {
-	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
-		let v: Vec<T> = serde::Deserialize::deserialize(deserializer)?;
-		Ok(CowSlice::Owned(v))
+pub(crate) struct VecDeserializeSeed<T> {
+	alignment: usize,
+	_pd: std::marker::PhantomData<fn() -> Vec<T>>,
+}
+
+impl<T> VecDeserializeSeed<T> {
+	pub(crate) fn new(alignment: usize) -> Self {
+		VecDeserializeSeed {
+			alignment,
+			_pd: Default::default(),
+		}
+	}
+}
+
+impl<'de, T> serde::de::DeserializeSeed<'de> for VecDeserializeSeed<T> where T: serde::Deserialize<'de> {
+	type Value = Vec<T>;
+
+	fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error> where D: serde::Deserializer<'de> {
+		struct VecDeserializeVisitor<T>(std::marker::PhantomData<fn() -> Vec<T>>);
+
+		impl<'de, T> serde::de::Visitor<'de> for VecDeserializeVisitor<T> where T: serde::Deserialize<'de> {
+			type Value = Vec<T>;
+
+			fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+				formatter.write_str("a sequence")
+			}
+
+			fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error> where A: serde::de::SeqAccess<'de> {
+				let mut result = vec![];
+
+				while let Some(element) = seq.next_element()? {
+					result.push(element);
+				}
+
+				Ok(result)
+			}
+		}
+
+		deserializer.deserialize_tuple_struct("", self.alignment, VecDeserializeVisitor(Default::default()))
 	}
 }

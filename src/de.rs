@@ -240,23 +240,36 @@ impl<'de> serde::Deserializer<'de> for &'_ mut Deserializer<'de> {
 		unimplemented!();
 	}
 
-	fn deserialize_seq<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		let data_len: u32 = serde::de::Deserialize::deserialize(&mut *self)?;
-		let data_len: usize = std::convert::TryInto::try_into(data_len).map_err(serde::de::Error::custom)?;
-
-		let data_end_pos = self.pos + data_len;
-
-		let result = visitor.visit_seq(SeqDeserializer { inner: self, data_end_pos })?;
-
-		Ok(result)
+	// Since we need the Deserialize to pass in alignment information, we want it to use deserialize_tuple_struct instead.
+	fn deserialize_seq<V>(self, _visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
+		unimplemented!();
 	}
 
 	fn deserialize_tuple<V>(self, _len: usize, visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
 		visitor.visit_seq(TupleDeserializer(self))
 	}
 
-	fn deserialize_tuple_struct<V>(self, _name: &'static str, _len: usize, _visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		unimplemented!();
+	// HACK: This deserializes a sequence, not a tuple struct. We use this instead of deserialize_seq because we need the Deserialize impl to pass in
+	// the alignment of the value it's deserializing, so that we can skip padding for empty arrays. So we (ab)use the `len` parameter to pass that in.
+	fn deserialize_tuple_struct<V>(self, _name: &'static str, len: usize, visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
+		let data_len: u32 = serde::de::Deserialize::deserialize(&mut *self)?;
+		let data_len: usize = std::convert::TryInto::try_into(data_len).map_err(serde::de::Error::custom)?;
+
+		self.pad_to(len)?;
+
+		let data_end_pos = self.pos + data_len;
+
+		let mut inner = Deserializer {
+			buf: &self.buf.get(..data_end_pos).ok_or(DeserializeError::EndOfInput)?,
+			pos: self.pos,
+			endianness: self.endianness,
+		};
+
+		let result = visitor.visit_seq(SeqDeserializer(&mut inner))?;
+
+		self.pos = inner.pos;
+
+		Ok(result)
 	}
 
 	fn deserialize_map<V>(self, _visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
@@ -286,22 +299,17 @@ impl<'de> serde::Deserializer<'de> for &'_ mut Deserializer<'de> {
 	}
 }
 
-struct SeqDeserializer<'de, 'a> {
-	inner: &'a mut Deserializer<'de>,
-	data_end_pos: usize,
-}
+struct SeqDeserializer<'de, 'a>(&'a mut Deserializer<'de>);
 
 impl<'de, 'a> serde::de::SeqAccess<'de> for SeqDeserializer<'de, 'a> {
 	type Error = DeserializeError;
 
 	fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error> where T: serde::de::DeserializeSeed<'de> {
-		if self.inner.pos >= self.data_end_pos {
-			// self.inner.pos will be greater than self.data_end_pos in case there was padding between the length and the first element,
-			// because self.data_end_pos was calculated without considering that padding.
+		if self.0.pos == self.0.buf.len() {
 			Ok(None)
 		}
 		else {
-			seed.deserialize(&mut *self.inner).map(Some)
+			seed.deserialize(&mut *self.0).map(Some)
 		}
 	}
 }

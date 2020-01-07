@@ -163,7 +163,9 @@ impl<'de> serde::Deserialize<'de> for MessageHeader<'static> {
 
 				let serial: u32 = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("serial"))?;
 
-				let fields: Vec<MessageHeaderField<'static>> = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("fields"))?;
+				let fields: Vec<MessageHeaderField<'static>> =
+					seq.next_element_seed(crate::std2::VecDeserializeSeed::new(8))?
+					.ok_or_else(|| serde::de::Error::missing_field("fields"))?;
 
 				let (r#type, fields) = MessageType::from::<A>(r#type, fields)?;
 
