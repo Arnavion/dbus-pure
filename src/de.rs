@@ -22,7 +22,7 @@ impl<'de> Deserializer<'de> {
 
 		for &b in &self.buf[self.pos..new_pos] {
 			if b != 0x00 {
-				return Err(DeserializeError::NonZeroPadding);
+				return Err(DeserializeError::NonZeroPadding { start: self.pos, end: new_pos });
 			}
 		}
 
@@ -339,7 +339,7 @@ pub enum DeserializeError {
 	EndOfInput,
 	ExceedsNumericLimits(std::num::TryFromIntError),
 	InvalidUtf8(std::str::Utf8Error),
-	NonZeroPadding,
+	NonZeroPadding { start: usize, end: usize },
 	StringMissingNulTerminator,
 	Unexpected(String),
 }
@@ -357,7 +357,7 @@ impl std::fmt::Display for DeserializeError {
 			DeserializeError::EndOfInput => f.write_str("end of input"),
 			DeserializeError::ExceedsNumericLimits(_) => f.write_str("value exceeds numeric limits"),
 			DeserializeError::InvalidUtf8(_) => f.write_str("deserialized string is not valid UTF-8"),
-			DeserializeError::NonZeroPadding => f.write_str("padding contains a byte other than 0x00"),
+			DeserializeError::NonZeroPadding { start, end } => write!(f, "padding contains a byte other than 0x00 between positions {} and {}", start, end),
 			DeserializeError::StringMissingNulTerminator => f.write_str("deserialized string is not nul-terminated"),
 			DeserializeError::Unexpected(message) => f.write_str(message),
 		}
@@ -374,7 +374,7 @@ impl std::error::Error for DeserializeError {
 			DeserializeError::EndOfInput => None,
 			DeserializeError::ExceedsNumericLimits(err) => Some(err),
 			DeserializeError::InvalidUtf8(err) => Some(err),
-			DeserializeError::NonZeroPadding => None,
+			DeserializeError::NonZeroPadding { start: _, end: _ } => None,
 			DeserializeError::StringMissingNulTerminator => None,
 			DeserializeError::Unexpected(_) => None,
 		}
