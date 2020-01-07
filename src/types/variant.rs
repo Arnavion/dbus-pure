@@ -878,6 +878,12 @@ mod tests {
 
 		test(
 			"g",
+			b"\0\0",
+			crate::types::Variant::Signature(crate::types::Signature::Tuple { elements: vec![] }),
+		);
+
+		test(
+			"g",
 			b"\x01s\0",
 			super::Variant::Signature(crate::types::Signature::String),
 		);
@@ -1102,6 +1108,15 @@ mod tests {
 			super::Variant::Variant((&
 				super::Variant::String("org.freedesktop.DBus".into())
 			).into()),
+		);
+
+		test(
+			"v",
+			b"\
+				\x01g\0\
+				\0\0\
+			",
+			super::Variant::Variant((&crate::types::Variant::Signature(crate::types::Signature::Tuple { elements: vec![] })).into()),
 		);
 
 		test(

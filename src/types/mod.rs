@@ -232,6 +232,9 @@ impl std::str::FromStr for Signature {
 		}
 
 		let mut chars = s.chars().peekable();
+		if chars.peek().is_none() {
+			return Ok(Signature::Tuple { elements: vec![] });
+		}
 
 		let first = from_inner(&mut chars)?;
 		if chars.peek().is_some() {
