@@ -665,6 +665,8 @@ mod tests {
 			let actual_variant: super::Variant<'_> = serde::de::DeserializeSeed::deserialize(deserialize_seed, &mut deserializer).unwrap();
 			assert_eq!(expected_variant, actual_variant);
 
+			assert_eq!(deserializer.pos(), expected_serialized.len());
+
 			let mut actual_serialized = vec![];
 			let mut serializer = crate::ser::Serializer::new(&mut actual_serialized, crate::Endianness::Little);
 			serde::Serialize::serialize(&actual_variant, &mut serializer).unwrap();
