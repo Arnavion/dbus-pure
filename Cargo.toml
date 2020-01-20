@@ -6,6 +6,7 @@ authors = ["Arnavion <arnavion@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+dbus-pure-macros = { version = "0.1", path = "./dbus-pure-macros" }
 dbus-pure-proto = { version = "0.1", path = "./dbus-pure-proto" }
 libc = "0.2"
 serde = "1"

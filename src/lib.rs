@@ -17,7 +17,49 @@
 //!
 //! # Example
 //!
-//! ## Connect to the session bus and list all names
+//! ## Connect to the session bus and list all names, with the D-Bus interfaces defined using the `dbus-pure-macros` crate's macros
+//!
+//! ```rust
+//! /// The `org.freedesktop.DBus` interface with the `ListNames` method.
+//! #[dbus_pure_macros::interface("org.freedesktop.DBus")]
+//! trait OrgFreeDesktopDbusInterface {
+//!     #[name = "ListNames"]
+//!     fn list_names() -> Vec<String>;
+//! }
+//!
+//! /// The `/org/freedesktop/DBus` object.
+//! #[dbus_pure_macros::object(OrgFreeDesktopDbusInterface)]
+//! struct OrgFreeDesktopDbusObject;
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! #
+//! let connection =
+//!     dbus_pure::Connection::new(
+//!         dbus_pure::BusPath::Session,
+//!         dbus_pure::SaslAuthType::Uid,
+//!     )?;
+//! let mut client = dbus_pure::Client::new(connection)?;
+//!
+//! // List all names by calling the `org.freedesktop.DBus.ListNames` method
+//! // on the `/org/freedesktop/DBus` object at the destination `org.freedesktop.DBus`.
+//! let names = {
+//!     let obj = OrgFreeDesktopDbusObject {
+//!         name: "org.freedesktop.DBus".into(),
+//!         path: dbus_pure::proto::ObjectPath("/org/freedesktop/DBus".into()),
+//!     };
+//!     let names = obj.list_names(&mut client)?;
+//!     names
+//! };
+//!
+//! for name in names {
+//!     println!("{}", name);
+//! }
+//! #
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! ## Connect to the session bus and list all names manually
 //!
 //! ```rust
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {

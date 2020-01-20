@@ -1,5 +1,8 @@
 #![deny(rust_2018_idioms, warnings)]
 #![deny(clippy::all, clippy::pedantic)]
+#![allow(
+	clippy::let_and_return,
+)]
 
 // Connects to the session bus, enumerates all media players that implement MPRIS, and prints their playback status.
 
@@ -28,17 +31,12 @@ fn main() -> Result<(), Error> {
 	// List all names by calling the `org.freedesktop.DBus.ListNames` method
 	// on the `/org/freedesktop/DBus` object at the destination `org.freedesktop.DBus`.
 	let names = {
-		let body =
-			client.method_call(
-				"org.freedesktop.DBus",
-				dbus_pure::proto::ObjectPath("/org/freedesktop/DBus".into()),
-				"org.freedesktop.DBus",
-				"ListNames",
-				None,
-			)?
-			.ok_or("ListNames response does not have a body")?;
-		let body: Vec<String> = serde::Deserialize::deserialize(body)?;
-		body
+		let obj = OrgFreeDesktopDbusObject {
+			name: "org.freedesktop.DBus".into(),
+			path: dbus_pure::proto::ObjectPath("/org/freedesktop/DBus".into()),
+		};
+		let names = obj.list_names(&mut client)?;
+		names
 	};
 
 	// MPRIS media players have names that start with "org.mpris.MediaPlayer2."
@@ -55,22 +53,13 @@ fn main() -> Result<(), Error> {
 		// Properties in general are accessed by calling the `org.freedesktop.DBus.Properties.Get` method
 		// with two parameters - the interface name and the property name.
 		let playback_status = {
-			let body =
-				client.method_call(
-					media_player_name,
-					dbus_pure::proto::ObjectPath("/org/mpris/MediaPlayer2".into()),
-					"org.freedesktop.DBus.Properties",
-					"Get",
-					Some(&dbus_pure::proto::Variant::Tuple {
-						elements: (&[
-							dbus_pure::proto::Variant::String("org.mpris.MediaPlayer2.Player".into()),
-							dbus_pure::proto::Variant::String("PlaybackStatus".into()),
-						][..]).into(),
-					}),
-				)?
-				.ok_or("GetPlaybackStatus response does not have a body")?;
-			let body: String = serde::Deserialize::deserialize(body)?;
-			body
+			let obj = OrgMprisMediaPlayer2Object {
+				name: (&**media_player_name).into(),
+				path: dbus_pure::proto::ObjectPath("/org/mpris/MediaPlayer2".into()),
+			};
+			let playback_status = obj.get(&mut client, "org.mpris.MediaPlayer2.Player", "PlaybackStatus")?;
+			let playback_status: String = serde::Deserialize::deserialize(playback_status)?;
+			playback_status
 		};
 
 		println!("{} is {}", media_player_name, playback_status);
@@ -100,3 +89,21 @@ impl std::fmt::Debug for Error {
 		Ok(())
 	}
 }
+
+#[dbus_pure_macros::interface("org.freedesktop.DBus")]
+trait OrgFreeDesktopDbusInterface {
+	#[name = "ListNames"]
+	fn list_names() -> Vec<String>;
+}
+
+#[dbus_pure_macros::object(OrgFreeDesktopDbusInterface)]
+struct OrgFreeDesktopDbusObject;
+
+#[dbus_pure_macros::interface("org.freedesktop.DBus.Properties")]
+trait OrgFreeDesktopDbusPropertiesInterface {
+	#[name = "Get"]
+	fn get(interface_name: &str, property_name: &str) -> dbus_pure::proto::Variant<'static>;
+}
+
+#[dbus_pure_macros::object(OrgFreeDesktopDbusPropertiesInterface)]
+struct OrgMprisMediaPlayer2Object;

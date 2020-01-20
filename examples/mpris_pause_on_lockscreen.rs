@@ -2,6 +2,8 @@
 #![deny(clippy::all, clippy::pedantic)]
 #![allow(
 	clippy::default_trait_access,
+	clippy::let_and_return,
+	clippy::let_unit_value,
 	clippy::too_many_lines,
 	clippy::unneeded_field_pattern,
 )]
@@ -37,15 +39,17 @@ fn main() -> Result<(), Error> {
 	//
 	// Adding a match is done by calling the `org.freedesktop.DBus.AddMatch` method on the `/org/freedesktop/DBus` object
 	// at the destination `org.freedesktop.DBus`. The method takes a single string parameter for the match rule.
-	client.method_call(
-		"org.freedesktop.DBus",
-		dbus_pure::proto::ObjectPath("/org/freedesktop/DBus".into()),
-		"org.freedesktop.DBus",
-		"AddMatch",
-		Some(&dbus_pure::proto::Variant::String(
-			"type='signal',path='/org/freedesktop/ScreenSaver',interface='org.freedesktop.ScreenSaver',member='ActiveChanged'".into()
-		)),
-	)?;
+	{
+		let obj = OrgFreeDesktopDbusObject {
+			name: "org.freedesktop.DBus".into(),
+			path: dbus_pure::proto::ObjectPath("/org/freedesktop/DBus".into()),
+		};
+		let () =
+			obj.add_match(
+				&mut client,
+				"type='signal',path='/org/freedesktop/ScreenSaver',interface='org.freedesktop.ScreenSaver',member='ActiveChanged'",
+			)?;
+	}
 
 	let mut players_to_resume: std::collections::BTreeSet<_> = Default::default();
 
@@ -69,17 +73,12 @@ fn main() -> Result<(), Error> {
 			// List all names by calling the `org.freedesktop.DBus.ListNames` method
 			// on the `/org/freedesktop/DBus` object at the destination `org.freedesktop.DBus`.
 			let names = {
-				let body =
-					client.method_call(
-						"org.freedesktop.DBus",
-						dbus_pure::proto::ObjectPath("/org/freedesktop/DBus".into()),
-						"org.freedesktop.DBus",
-						"ListNames",
-						None,
-					)?
-					.ok_or("ListNames response does not have a body")?;
-				let body: Vec<String> = serde::Deserialize::deserialize(body)?;
-				body
+				let obj = OrgFreeDesktopDbusObject {
+					name: "org.freedesktop.DBus".into(),
+					path: dbus_pure::proto::ObjectPath("/org/freedesktop/DBus".into()),
+				};
+				let names = obj.list_names(&mut client)?;
+				names
 			};
 
 			// MPRIS media players have names that start with "org.mpris.MediaPlayer2."
@@ -88,6 +87,11 @@ fn main() -> Result<(), Error> {
 				.filter(|object_name| object_name.starts_with("org.mpris.MediaPlayer2."));
 
 			for media_player_name in media_player_names {
+				let obj = OrgMprisMediaPlayer2Object {
+					name: (&*media_player_name).into(),
+					path: dbus_pure::proto::ObjectPath("/org/mpris/MediaPlayer2".into()),
+				};
+
 				// Get the playback status of the media player by gettings its `PlaybackStatus` property.
 				//
 				// The property is exposed by the object at path `/org/mpris/MediaPlayer2`
@@ -96,35 +100,16 @@ fn main() -> Result<(), Error> {
 				// Properties in general are accessed by calling the `org.freedesktop.DBus.Properties.Get` method
 				// with two parameters - the interface name and the property name.
 				let playback_status = {
-					let body =
-						client.method_call(
-							&media_player_name,
-							dbus_pure::proto::ObjectPath("/org/mpris/MediaPlayer2".into()),
-							"org.freedesktop.DBus.Properties",
-							"Get",
-							Some(&dbus_pure::proto::Variant::Tuple {
-								elements: (&[
-									dbus_pure::proto::Variant::String("org.mpris.MediaPlayer2.Player".into()),
-									dbus_pure::proto::Variant::String("PlaybackStatus".into()),
-								][..]).into(),
-							}),
-						)?
-						.ok_or("GetPlaybackStatus response does not have a body")?;
-					let body: String = serde::Deserialize::deserialize(body)?;
-					body
+					let playback_status = obj.get(&mut client, "org.mpris.MediaPlayer2.Player", "PlaybackStatus")?;
+					let playback_status: String = serde::Deserialize::deserialize(playback_status)?;
+					playback_status
 				};
 
 				if playback_status == "Playing" {
 					println!("Pausing {} ...", media_player_name);
 
 					// Pause the player by invoking its `org.mpris.MediaPlayer2.Player.Pause` method.
-					client.method_call(
-						&media_player_name,
-						dbus_pure::proto::ObjectPath("/org/mpris/MediaPlayer2".into()),
-						"org.mpris.MediaPlayer2.Player",
-						"Pause",
-						None,
-					)?;
+					let () = obj.pause(&mut client)?;
 
 					println!("{} is paused", media_player_name);
 
@@ -134,17 +119,16 @@ fn main() -> Result<(), Error> {
 		}
 		else {
 			for media_player_name in std::mem::take(&mut players_to_resume) {
+				let obj = OrgMprisMediaPlayer2Object {
+					name: (&*media_player_name).into(),
+					path: dbus_pure::proto::ObjectPath("/org/mpris/MediaPlayer2".into()),
+				};
+
 				println!("Unpausing {} ...", media_player_name);
 
 				// Unpause the player by invoking its `org.mpris.MediaPlayer2.Player.Play` method.
 				// Swallow any errors in case the player refuses to play or no longer exists.
-				let result = client.method_call(
-					&media_player_name,
-					dbus_pure::proto::ObjectPath("/org/mpris/MediaPlayer2".into()),
-					"org.mpris.MediaPlayer2.Player",
-					"Play",
-					None,
-				);
+				let result = obj.play(&mut client);
 				if result.is_ok() {
 					println!("{} is unpaused", media_player_name);
 				}
@@ -174,3 +158,36 @@ impl std::fmt::Debug for Error {
 		Ok(())
 	}
 }
+
+#[dbus_pure_macros::interface("org.freedesktop.DBus")]
+trait OrgFreeDesktopDbusInterface {
+	#[name = "AddMatch"]
+	fn add_match(rule: &str);
+
+	#[name = "ListNames"]
+	fn list_names() -> Vec<String>;
+}
+
+#[dbus_pure_macros::object(OrgFreeDesktopDbusInterface)]
+struct OrgFreeDesktopDbusObject;
+
+#[dbus_pure_macros::interface("org.freedesktop.DBus.Properties")]
+trait OrgFreeDesktopDbusPropertiesInterface {
+	#[name = "Get"]
+	fn get(interface_name: &str, property_name: &str) -> dbus_pure::proto::Variant<'static>;
+}
+
+#[dbus_pure_macros::interface("org.mpris.MediaPlayer2.Player")]
+trait OrgMprisMediaPlayer2Player {
+	#[name = "Pause"]
+	fn pause();
+
+	#[name = "Play"]
+	fn play();
+}
+
+#[dbus_pure_macros::object(
+	OrgFreeDesktopDbusPropertiesInterface,
+	OrgMprisMediaPlayer2Player,
+)]
+struct OrgMprisMediaPlayer2Object;

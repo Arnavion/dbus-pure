@@ -19,18 +19,13 @@ impl Client {
 		};
 
 		client.name = Some({
-			let body =
-				client.method_call(
-					"org.freedesktop.DBus",
-					crate::proto::ObjectPath("/org/freedesktop/DBus".into()),
-					"org.freedesktop.DBus",
-					"Hello",
-					None,
-				)
-				.map_err(CreateClientError::Hello)?
-				.ok_or_else(|| CreateClientError::UnexpectedMessage(serde::de::Error::custom("response does not have a body")))?;
-			let body: String = serde::Deserialize::deserialize(body).map_err(CreateClientError::UnexpectedMessage)?;
-			body
+			let obj = OrgFreeDesktopDbusObject {
+				name: "org.freedesktop.DBus".into(),
+				path: crate::proto::ObjectPath("/org/freedesktop/DBus".into()),
+			};
+
+			let name = obj.hello(&mut client).map_err(CreateClientError::Hello)?;
+			name
 		});
 
 		Ok(client)
@@ -176,14 +171,12 @@ impl std::fmt::Debug for Client {
 #[derive(Debug)]
 pub enum CreateClientError {
 	Hello(MethodCallError),
-	UnexpectedMessage(crate::proto::DeserializeError),
 }
 
 impl std::fmt::Display for CreateClientError {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			CreateClientError::Hello(_) => f.write_str("could not complete hello"),
-			CreateClientError::UnexpectedMessage(_) => write!(f, "could not deserialize hello response"),
 		}
 	}
 }
@@ -192,7 +185,6 @@ impl std::error::Error for CreateClientError {
 	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
 		match self {
 			CreateClientError::Hello(err) => Some(err),
-			CreateClientError::UnexpectedMessage(err) => Some(err),
 		}
 	}
 }
@@ -203,6 +195,7 @@ pub enum MethodCallError {
 	Error(String, Option<crate::proto::Variant<'static>>),
 	RecvResponse(crate::conn::RecvError),
 	SendRequest(crate::conn::SendError),
+	UnexpectedResponse(Option<crate::proto::DeserializeError>),
 }
 
 impl std::fmt::Display for MethodCallError {
@@ -211,16 +204,32 @@ impl std::fmt::Display for MethodCallError {
 			MethodCallError::Error(error_name, body) => write!(f, "method call failed with an error: {} {:?}", error_name, body),
 			MethodCallError::RecvResponse(_) => f.write_str("could not receive response"),
 			MethodCallError::SendRequest(_) => f.write_str("could not send request"),
+			MethodCallError::UnexpectedResponse(Some(_)) => write!(f, "could not deserialize response body"),
+			MethodCallError::UnexpectedResponse(None) => write!(f, "could not deserialize response body: response has empty body"),
 		}
 	}
 }
 
 impl std::error::Error for MethodCallError {
 	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+		#[allow(clippy::match_same_arms)]
 		match self {
 			MethodCallError::Error(_, _) => None,
 			MethodCallError::RecvResponse(err) => Some(err),
 			MethodCallError::SendRequest(err) => Some(err),
+			MethodCallError::UnexpectedResponse(Some(err)) => Some(err),
+			MethodCallError::UnexpectedResponse(None) => None,
 		}
 	}
 }
+
+use crate as dbus_pure;
+
+#[dbus_pure_macros::interface("org.freedesktop.DBus")]
+trait OrgFreeDesktopDbusInterface {
+	#[name = "Hello"]
+	fn hello() -> String;
+}
+
+#[dbus_pure_macros::object(OrgFreeDesktopDbusInterface)]
+struct OrgFreeDesktopDbusObject;

@@ -415,6 +415,12 @@ impl<'de> serde::Deserialize<'de> for UnixFd {
 	}
 }
 
+/// A trait representing a generic object on a message bus.
+pub trait Object {
+	fn name(&self) -> &str;
+	fn path(&self) -> ObjectPath<'_>;
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct UsizeAsU32(pub(crate) usize);
 
