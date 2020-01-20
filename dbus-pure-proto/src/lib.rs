@@ -6,12 +6,18 @@
 	clippy::missing_errors_doc,
 	clippy::module_name_repetitions,
 	clippy::must_use_candidate,
+	clippy::needless_lifetimes,
 	clippy::similar_names,
 	clippy::too_many_lines,
 	clippy::unneeded_field_pattern,
 )]
 
 //! This is a pure Rust implementation of the D-Bus binary protocol.
+
+mod as_variant;
+pub use as_variant::{
+	AsVariant,
+};
 
 pub(crate) mod de;
 pub use de::{
@@ -394,7 +400,7 @@ impl serde::Serialize for Signature {
 }
 
 /// An index into an array of file descriptors.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct UnixFd(pub u32);
 
 impl serde::Serialize for UnixFd {

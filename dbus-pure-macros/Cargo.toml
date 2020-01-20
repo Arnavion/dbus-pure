@@ -1,0 +1,13 @@
+[package]
+name = "dbus-pure-macros"
+version = "0.1.0"
+authors = ["Arnavion <arnavion@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "1", features = ["derive"] }
+
+[lib]
+proc-macro = true

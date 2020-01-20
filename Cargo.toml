@@ -11,3 +11,7 @@ libc = "0.2"
 serde = "1"
 
 [workspace]
+members = [
+	"dbus-pure-macros",
+	"dbus-pure-proto",
+]
