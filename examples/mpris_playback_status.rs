@@ -5,25 +5,25 @@
 
 fn main() -> Result<(), Error> {
 	let mut connection =
-		dbus_pure::conn::Connection::new(
-			dbus_pure::conn::BusPath::Session,
-			dbus_pure::conn::SaslAuthType::Uid,
+		dbus_pure::Connection::new(
+			dbus_pure::BusPath::Session,
+			dbus_pure::SaslAuthType::Uid,
 		)?;
 
 	// For testing
 	if let Some(s) = std::env::var_os("FORCE_WRITE_ENDIANNESS") {
 		if s == "big" {
-			connection.set_write_endianness(dbus_pure::Endianness::Big);
+			connection.set_write_endianness(dbus_pure::proto::Endianness::Big);
 		}
 		else if s == "little" {
-			connection.set_write_endianness(dbus_pure::Endianness::Little);
+			connection.set_write_endianness(dbus_pure::proto::Endianness::Little);
 		}
 		else {
 			return Err(format!(r#"invalid value of FORCE_WRITE_ENDIANNESS env var {:?}, expected "big" or "little""#, s).into());
 		}
 	}
 
-	let mut client = dbus_pure::client::Client::new(connection)?;
+	let mut client = dbus_pure::Client::new(connection)?;
 
 	// List all names by calling the `org.freedesktop.DBus.ListNames` method
 	// on the `/org/freedesktop/DBus` object at the destination `org.freedesktop.DBus`.
@@ -31,7 +31,7 @@ fn main() -> Result<(), Error> {
 		let body =
 			client.method_call(
 				"org.freedesktop.DBus",
-				dbus_pure::types::ObjectPath("/org/freedesktop/DBus".into()),
+				dbus_pure::proto::ObjectPath("/org/freedesktop/DBus".into()),
 				"org.freedesktop.DBus",
 				"ListNames",
 				None,
@@ -58,13 +58,13 @@ fn main() -> Result<(), Error> {
 			let body =
 				client.method_call(
 					media_player_name,
-					dbus_pure::types::ObjectPath("/org/mpris/MediaPlayer2".into()),
+					dbus_pure::proto::ObjectPath("/org/mpris/MediaPlayer2".into()),
 					"org.freedesktop.DBus.Properties",
 					"Get",
-					Some(&dbus_pure::types::Variant::Tuple {
+					Some(&dbus_pure::proto::Variant::Tuple {
 						elements: (&[
-							dbus_pure::types::Variant::String("org.mpris.MediaPlayer2.Player".into()),
-							dbus_pure::types::Variant::String("PlaybackStatus".into()),
+							dbus_pure::proto::Variant::String("org.mpris.MediaPlayer2.Player".into()),
+							dbus_pure::proto::Variant::String("PlaybackStatus".into()),
 						][..]).into(),
 					}),
 				)?

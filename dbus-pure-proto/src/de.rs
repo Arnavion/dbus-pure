@@ -341,7 +341,7 @@ impl<'de, 'a> serde::de::MapAccess<'de> for StructDeserializer<'de, 'a> {
 /// An error from deserializing a value using the D-Bus binary protocol.
 #[derive(Debug)]
 pub enum DeserializeError {
-	ArrayElementDoesntMatchSignature { expected: crate::types::Signature, actual: crate::types::Signature },
+	ArrayElementDoesntMatchSignature { expected: crate::Signature, actual: crate::Signature },
 	Custom(String),
 	DeserializeAnyNotSupported,
 	EndOfInput,

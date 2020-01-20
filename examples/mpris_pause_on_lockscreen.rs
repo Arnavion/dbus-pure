@@ -12,25 +12,25 @@
 
 fn main() -> Result<(), Error> {
 	let mut connection =
-		dbus_pure::conn::Connection::new(
-			dbus_pure::conn::BusPath::Session,
-			dbus_pure::conn::SaslAuthType::Uid,
+		dbus_pure::Connection::new(
+			dbus_pure::BusPath::Session,
+			dbus_pure::SaslAuthType::Uid,
 		)?;
 
 	// For testing
 	if let Some(s) = std::env::var_os("FORCE_WRITE_ENDIANNESS") {
 		if s == "big" {
-			connection.set_write_endianness(dbus_pure::Endianness::Big);
+			connection.set_write_endianness(dbus_pure::proto::Endianness::Big);
 		}
 		else if s == "little" {
-			connection.set_write_endianness(dbus_pure::Endianness::Little);
+			connection.set_write_endianness(dbus_pure::proto::Endianness::Little);
 		}
 		else {
 			return Err(format!(r#"invalid value of FORCE_WRITE_ENDIANNESS env var {:?}, expected "big" or "little""#, s).into());
 		}
 	}
 
-	let mut client = dbus_pure::client::Client::new(connection)?;
+	let mut client = dbus_pure::Client::new(connection)?;
 
 	// Add a match for all screen lock and unlock events. These events manifest as the `org.freedesktop.ScreenSaver.ActiveChanged` signal
 	// from the `/org/freedesktop/ScreenSaver` object.
@@ -39,10 +39,10 @@ fn main() -> Result<(), Error> {
 	// at the destination `org.freedesktop.DBus`. The method takes a single string parameter for the match rule.
 	client.method_call(
 		"org.freedesktop.DBus",
-		dbus_pure::types::ObjectPath("/org/freedesktop/DBus".into()),
+		dbus_pure::proto::ObjectPath("/org/freedesktop/DBus".into()),
 		"org.freedesktop.DBus",
 		"AddMatch",
-		Some(&dbus_pure::types::Variant::String(
+		Some(&dbus_pure::proto::Variant::String(
 			"type='signal',path='/org/freedesktop/ScreenSaver',interface='org.freedesktop.ScreenSaver',member='ActiveChanged'".into()
 		)),
 	)?;
@@ -53,7 +53,7 @@ fn main() -> Result<(), Error> {
 		let locked = {
 			let (header, body) = client.recv()?;
 			match header.r#type {
-				dbus_pure::types::MessageType::Signal { interface, member, path: _ }
+				dbus_pure::proto::MessageType::Signal { interface, member, path: _ }
 					if interface == "org.freedesktop.ScreenSaver" && member == "ActiveChanged" => (),
 				_ => continue,
 			}
@@ -72,7 +72,7 @@ fn main() -> Result<(), Error> {
 				let body =
 					client.method_call(
 						"org.freedesktop.DBus",
-						dbus_pure::types::ObjectPath("/org/freedesktop/DBus".into()),
+						dbus_pure::proto::ObjectPath("/org/freedesktop/DBus".into()),
 						"org.freedesktop.DBus",
 						"ListNames",
 						None,
@@ -99,13 +99,13 @@ fn main() -> Result<(), Error> {
 					let body =
 						client.method_call(
 							&media_player_name,
-							dbus_pure::types::ObjectPath("/org/mpris/MediaPlayer2".into()),
+							dbus_pure::proto::ObjectPath("/org/mpris/MediaPlayer2".into()),
 							"org.freedesktop.DBus.Properties",
 							"Get",
-							Some(&dbus_pure::types::Variant::Tuple {
+							Some(&dbus_pure::proto::Variant::Tuple {
 								elements: (&[
-									dbus_pure::types::Variant::String("org.mpris.MediaPlayer2.Player".into()),
-									dbus_pure::types::Variant::String("PlaybackStatus".into()),
+									dbus_pure::proto::Variant::String("org.mpris.MediaPlayer2.Player".into()),
+									dbus_pure::proto::Variant::String("PlaybackStatus".into()),
 								][..]).into(),
 							}),
 						)?
@@ -120,7 +120,7 @@ fn main() -> Result<(), Error> {
 					// Pause the player by invoking its `org.mpris.MediaPlayer2.Player.Pause` method.
 					client.method_call(
 						&media_player_name,
-						dbus_pure::types::ObjectPath("/org/mpris/MediaPlayer2".into()),
+						dbus_pure::proto::ObjectPath("/org/mpris/MediaPlayer2".into()),
 						"org.mpris.MediaPlayer2.Player",
 						"Pause",
 						None,
@@ -140,7 +140,7 @@ fn main() -> Result<(), Error> {
 				// Swallow any errors in case the player refuses to play or no longer exists.
 				let result = client.method_call(
 					&media_player_name,
-					dbus_pure::types::ObjectPath("/org/mpris/MediaPlayer2".into()),
+					dbus_pure::proto::ObjectPath("/org/mpris/MediaPlayer2".into()),
 					"org.mpris.MediaPlayer2.Player",
 					"Play",
 					None,

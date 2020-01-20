@@ -99,7 +99,7 @@ impl<'ser, 'a> serde::Serializer for &'a mut Serializer<'ser> {
 	}
 
 	fn serialize_str(self, v: &str) -> Result<Self::Ok, Self::Error> {
-		serde::Serialize::serialize(&crate::types::Slice { inner: v.as_bytes(), alignment: 1 }, &mut *self)?;
+		serde::Serialize::serialize(&crate::Slice { inner: v.as_bytes(), alignment: 1 }, &mut *self)?;
 		serde::Serialize::serialize(&b'\0', &mut *self)?;
 		Ok(())
 	}

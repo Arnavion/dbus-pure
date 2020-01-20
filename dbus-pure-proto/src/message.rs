@@ -17,7 +17,7 @@ pub struct MessageHeader<'a> {
 	pub fields: std::borrow::Cow<'a, [MessageHeaderField<'a>]>,
 }
 
-pub(crate) fn deserialize_message(buf: &[u8]) -> Result<(MessageHeader<'static>, Option<crate::types::Variant<'static>>, usize), crate::de::DeserializeError> {
+pub fn deserialize_message(buf: &[u8]) -> Result<(MessageHeader<'static>, Option<crate::Variant<'static>>, usize), crate::DeserializeError> {
 	// Arbitrarily pick `Endianness::Little` to initialize the deserializer. It'll be overridden as soon as the endianness marker is parsed.
 	let mut deserializer = crate::de::Deserializer::new(buf, 0, crate::Endianness::Little);
 
@@ -35,7 +35,7 @@ pub(crate) fn deserialize_message(buf: &[u8]) -> Result<(MessageHeader<'static>,
 			let body_end_pos = body_start_pos + body_len;
 
 			if buf.len() < body_end_pos {
-				return Err(crate::de::DeserializeError::EndOfInput);
+				return Err(crate::DeserializeError::EndOfInput);
 			}
 
 			let signature =
@@ -45,11 +45,11 @@ pub(crate) fn deserialize_message(buf: &[u8]) -> Result<(MessageHeader<'static>,
 					_ => None,
 				})
 				.ok_or_else(|| serde::de::Error::custom("message has non-empty body but not signature field in its header"))?;
-			let deserialize_seed = crate::types::VariantDeserializeSeed::new(signature);
+			let deserialize_seed = crate::VariantDeserializeSeed::new(signature);
 
 			let mut deserializer = crate::de::Deserializer::new(&buf[..body_end_pos], body_start_pos, endianness);
 
-			let message_body: crate::types::Variant<'static> = serde::de::DeserializeSeed::deserialize(deserialize_seed, &mut deserializer)?;
+			let message_body: crate::Variant<'static> = serde::de::DeserializeSeed::deserialize(deserialize_seed, &mut deserializer)?;
 
 			(Some(message_body), body_end_pos)
 		}
@@ -60,12 +60,12 @@ pub(crate) fn deserialize_message(buf: &[u8]) -> Result<(MessageHeader<'static>,
 	Ok((message_header, message_body, read))
 }
 
-pub(crate) fn serialize_message(
+pub fn serialize_message(
 	header: &mut MessageHeader<'_>,
-	body: Option<&crate::types::Variant<'_>>,
+	body: Option<&crate::Variant<'_>>,
 	buf: &mut Vec<u8>,
 	endianness: crate::Endianness,
-) -> Result<(), crate::ser::SerializeError> {
+) -> Result<(), crate::SerializeError> {
 	use serde::Serialize;
 
 	let header_fields = header.fields.to_mut();
@@ -195,11 +195,11 @@ impl serde::Serialize for MessageHeader<'_> {
 
 		serializer.serialize_element(&0x01_u8)?;
 
-		serializer.serialize_element(&crate::types::UsizeAsU32(self.body_len))?;
+		serializer.serialize_element(&crate::UsizeAsU32(self.body_len))?;
 
 		serializer.serialize_element(&self.serial)?;
 
-		serializer.serialize_element(&crate::types::Slice {
+		serializer.serialize_element(&crate::Slice {
 			inner: &self.fields,
 			alignment: 1,
 		})?;
@@ -218,7 +218,7 @@ pub enum MessageType<'a> {
 
 	MethodCall {
 		member: std::borrow::Cow<'a, str>,
-		path: crate::types::ObjectPath<'a>,
+		path: crate::ObjectPath<'a>,
 	},
 
 	MethodReturn {
@@ -228,7 +228,7 @@ pub enum MessageType<'a> {
 	Signal {
 		interface: std::borrow::Cow<'a, str>,
 		member: std::borrow::Cow<'a, str>,
-		path: crate::types::ObjectPath<'a>,
+		path: crate::ObjectPath<'a>,
 	},
 }
 
@@ -405,19 +405,19 @@ pub enum MessageHeaderField<'a> {
 
 	Member(std::borrow::Cow<'a, str>),
 
-	Path(crate::types::ObjectPath<'a>),
+	Path(crate::ObjectPath<'a>),
 
 	ReplySerial(u32),
 
 	Sender(std::borrow::Cow<'a, str>),
 
-	Signature(crate::types::Signature),
+	Signature(crate::Signature),
 
 	UnixFds(u32),
 
 	Unknown {
 		code: u8,
-		value: crate::types::Variant<'a>,
+		value: crate::Variant<'a>,
 	},
 }
 
@@ -439,69 +439,69 @@ impl<'de> serde::Deserialize<'de> for MessageHeaderField<'static> {
 
 				let code: u8 = map.next_key()?.ok_or_else(|| serde::de::Error::missing_field("code"))?;
 
-				let signature: crate::types::Signature = map.next_value()?;
-				let seed = crate::types::VariantDeserializeSeed::new(&signature);
-				let value: crate::types::Variant<'static> = map.next_value_seed(seed)?;
+				let signature: crate::Signature = map.next_value()?;
+				let seed = crate::VariantDeserializeSeed::new(&signature);
+				let value: crate::Variant<'static> = map.next_value_seed(seed)?;
 
 				#[allow(clippy::match_same_arms)]
 				match (code, value) {
-					(0x01, crate::types::Variant::ObjectPath(object_path)) =>
+					(0x01, crate::Variant::ObjectPath(object_path)) =>
 						Ok(MessageHeaderField::Path(object_path)),
 					(0x01, value) => {
 						let unexpected = format!("{:?}", value);
 						Err(serde::de::Error::invalid_value(serde::de::Unexpected::Other(&unexpected), &"object path"))
 					},
 
-					(0x02, crate::types::Variant::String(name)) =>
+					(0x02, crate::Variant::String(name)) =>
 						Ok(MessageHeaderField::Interface(name)),
 					(0x02, value) => {
 						let unexpected = format!("{:?}", value);
 						Err(serde::de::Error::invalid_value(serde::de::Unexpected::Other(&unexpected), &"string"))
 					},
 
-					(0x03, crate::types::Variant::String(name)) =>
+					(0x03, crate::Variant::String(name)) =>
 						Ok(MessageHeaderField::Member(name)),
 					(0x03, value) => {
 						let unexpected = format!("{:?}", value);
 						Err(serde::de::Error::invalid_value(serde::de::Unexpected::Other(&unexpected), &"string"))
 					},
 
-					(0x04, crate::types::Variant::String(name)) =>
+					(0x04, crate::Variant::String(name)) =>
 						Ok(MessageHeaderField::ErrorName(name)),
 					(0x04, value) => {
 						let unexpected = format!("{:?}", value);
 						Err(serde::de::Error::invalid_value(serde::de::Unexpected::Other(&unexpected), &"string"))
 					},
 
-					(0x05, crate::types::Variant::U32(serial)) =>
+					(0x05, crate::Variant::U32(serial)) =>
 						Ok(MessageHeaderField::ReplySerial(serial)),
 					(0x05, value) => {
 						let unexpected = format!("{:?}", value);
 						Err(serde::de::Error::invalid_value(serde::de::Unexpected::Other(&unexpected), &"serial"))
 					},
 
-					(0x06, crate::types::Variant::String(name)) =>
+					(0x06, crate::Variant::String(name)) =>
 						Ok(MessageHeaderField::Destination(name)),
 					(0x06, value) => {
 						let unexpected = format!("{:?}", value);
 						Err(serde::de::Error::invalid_value(serde::de::Unexpected::Other(&unexpected), &"string"))
 					},
 
-					(0x07, crate::types::Variant::String(name)) =>
+					(0x07, crate::Variant::String(name)) =>
 						Ok(MessageHeaderField::Sender(name)),
 					(0x07, value) => {
 						let unexpected = format!("{:?}", value);
 						Err(serde::de::Error::invalid_value(serde::de::Unexpected::Other(&unexpected), &"string"))
 					},
 
-					(0x08, crate::types::Variant::Signature(signature)) =>
+					(0x08, crate::Variant::Signature(signature)) =>
 						Ok(MessageHeaderField::Signature(signature)),
 					(0x08, value) => {
 						let unexpected = format!("{:?}", value);
 						Err(serde::de::Error::invalid_value(serde::de::Unexpected::Other(&unexpected), &"signature"))
 					},
 
-					(0x09, crate::types::Variant::U32(num_unix_fds)) =>
+					(0x09, crate::Variant::U32(num_unix_fds)) =>
 						Ok(MessageHeaderField::UnixFds(num_unix_fds)),
 					(0x09, value) => {
 						let unexpected = format!("{:?}", value);
@@ -524,31 +524,31 @@ impl serde::Serialize for MessageHeaderField<'_> {
 
 		let (code, value) = match self {
 			MessageHeaderField::Destination(name) =>
-				(0x06_u8, std::borrow::Cow::Owned(crate::types::Variant::String(name.clone()))),
+				(0x06_u8, std::borrow::Cow::Owned(crate::Variant::String(name.clone()))),
 
 			MessageHeaderField::ErrorName(name) =>
-				(0x04_u8, std::borrow::Cow::Owned(crate::types::Variant::String(name.clone()))),
+				(0x04_u8, std::borrow::Cow::Owned(crate::Variant::String(name.clone()))),
 
 			MessageHeaderField::Interface(name) =>
-				(0x02_u8, std::borrow::Cow::Owned(crate::types::Variant::String(name.clone()))),
+				(0x02_u8, std::borrow::Cow::Owned(crate::Variant::String(name.clone()))),
 
 			MessageHeaderField::Member(name) =>
-				(0x03_u8, std::borrow::Cow::Owned(crate::types::Variant::String(name.clone()))),
+				(0x03_u8, std::borrow::Cow::Owned(crate::Variant::String(name.clone()))),
 
 			MessageHeaderField::Path(object_path) =>
-				(0x01_u8, std::borrow::Cow::Owned(crate::types::Variant::ObjectPath(object_path.clone()))),
+				(0x01_u8, std::borrow::Cow::Owned(crate::Variant::ObjectPath(object_path.clone()))),
 
 			MessageHeaderField::ReplySerial(value) =>
-				(0x05_u8, std::borrow::Cow::Owned(crate::types::Variant::U32(*value))),
+				(0x05_u8, std::borrow::Cow::Owned(crate::Variant::U32(*value))),
 
 			MessageHeaderField::Sender(name) =>
-				(0x07_u8, std::borrow::Cow::Owned(crate::types::Variant::String(name.clone()))),
+				(0x07_u8, std::borrow::Cow::Owned(crate::Variant::String(name.clone()))),
 
 			MessageHeaderField::Signature(signature) =>
-				(0x08_u8, std::borrow::Cow::Owned(crate::types::Variant::Signature(signature.clone()))),
+				(0x08_u8, std::borrow::Cow::Owned(crate::Variant::Signature(signature.clone()))),
 
 			MessageHeaderField::UnixFds(num_unix_fds) =>
-				(0x09_u8, std::borrow::Cow::Owned(crate::types::Variant::U32(*num_unix_fds))),
+				(0x09_u8, std::borrow::Cow::Owned(crate::Variant::U32(*num_unix_fds))),
 
 			MessageHeaderField::Unknown { code, value } =>
 				(*code, std::borrow::Cow::Borrowed(value)),

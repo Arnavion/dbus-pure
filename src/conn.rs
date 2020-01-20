@@ -5,7 +5,7 @@ pub struct Connection {
 	read_end: usize,
 	writer: std::os::unix::net::UnixStream,
 	write_buf: Vec<u8>,
-	write_endianness: crate::Endianness,
+	write_endianness: crate::proto::Endianness,
 	server_guid: Vec<u8>,
 }
 
@@ -134,7 +134,7 @@ impl Connection {
 		writer.flush().map_err(ConnectError::Authenticate)?;
 
 		// Default to target endianness
-		let write_endianness = if cfg!(target_endian = "big") { crate::Endianness::Big } else { crate::Endianness::Little };
+		let write_endianness = if cfg!(target_endian = "big") { crate::proto::Endianness::Big } else { crate::proto::Endianness::Little };
 
 		Ok(Connection {
 			reader,
@@ -159,10 +159,10 @@ impl Connection {
 	///   will be inserted automatically.
 	///
 	/// - The `MessageHeaderField::Signature` field will be automatically inserted if a body is specified, and must not be inserted by the caller.
-	pub fn send(&mut self, header: &mut crate::types::MessageHeader<'_>, body: Option<&crate::types::Variant<'_>>) -> Result<(), SendError> {
+	pub fn send(&mut self, header: &mut crate::proto::MessageHeader<'_>, body: Option<&crate::proto::Variant<'_>>) -> Result<(), SendError> {
 		use std::io::Write;
 
-		let () = crate::types::message::serialize_message(header, body, &mut self.write_buf, self.write_endianness).map_err(SendError::Serialize)?;
+		let () = crate::proto::serialize_message(header, body, &mut self.write_buf, self.write_endianness).map_err(SendError::Serialize)?;
 
 		let _ = self.writer.write_all(&self.write_buf).map_err(SendError::Io)?;
 		self.write_buf.clear();
@@ -173,18 +173,18 @@ impl Connection {
 	}
 
 	/// Receive a message from the message bus.
-	pub fn recv(&mut self) -> Result<(crate::types::MessageHeader<'static>, Option<crate::types::Variant<'static>>), RecvError> {
+	pub fn recv(&mut self) -> Result<(crate::proto::MessageHeader<'static>, Option<crate::proto::Variant<'static>>), RecvError> {
 		use std::io::Read;
 
 		loop {
-			match crate::types::message::deserialize_message(&self.read_buf[..self.read_end]) {
+			match crate::proto::deserialize_message(&self.read_buf[..self.read_end]) {
 				Ok((message_header, message_body, read)) => {
 					self.read_buf.copy_within(read..self.read_end, 0);
 					self.read_end -= read;
 					return Ok((message_header, message_body));
 				},
 
-				Err(crate::de::DeserializeError::EndOfInput) => {
+				Err(crate::proto::DeserializeError::EndOfInput) => {
 					if self.read_end == self.read_buf.len() {
 						self.read_buf.resize(self.read_buf.len() * 2, 0);
 					}
@@ -205,7 +205,7 @@ impl Connection {
 	/// Set the endianness used for sending messages.
 	///
 	/// By default, the connection uses the target endianness. Use this method to override that.
-	pub fn set_write_endianness(&mut self, endianness: crate::Endianness) {
+	pub fn set_write_endianness(&mut self, endianness: crate::proto::Endianness) {
 		self.write_endianness = endianness;
 	}
 }
@@ -252,7 +252,7 @@ impl std::error::Error for ConnectError {
 #[derive(Debug)]
 pub enum SendError {
 	Io(std::io::Error),
-	Serialize(crate::ser::SerializeError),
+	Serialize(crate::proto::SerializeError),
 }
 
 impl std::fmt::Display for SendError {
@@ -276,7 +276,7 @@ impl std::error::Error for SendError {
 /// An error from receiving a message using a [`Connection::recv`].
 #[derive(Debug)]
 pub enum RecvError {
-	Deserialize(crate::de::DeserializeError),
+	Deserialize(crate::proto::DeserializeError),
 	Io(std::io::Error),
 }
 

@@ -3,7 +3,7 @@ pub struct Client {
 	connection: crate::conn::Connection,
 	last_serial: u32,
 	name: Option<String>,
-	received_messages: std::collections::VecDeque<(crate::types::MessageHeader<'static>, Option<crate::types::Variant<'static>>)>,
+	received_messages: std::collections::VecDeque<(crate::proto::MessageHeader<'static>, Option<crate::proto::Variant<'static>>)>,
 }
 
 impl Client {
@@ -22,7 +22,7 @@ impl Client {
 			let body =
 				client.method_call(
 					"org.freedesktop.DBus",
-					crate::types::ObjectPath("/org/freedesktop/DBus".into()),
+					crate::proto::ObjectPath("/org/freedesktop/DBus".into()),
 					"org.freedesktop.DBus",
 					"Hello",
 					None,
@@ -55,14 +55,14 @@ impl Client {
 	/// - The `MessageHeaderField::Signature` field will be automatically inserted if a body is specified, and must not be inserted by the caller.
 	///
 	/// Returns the serial of the message.
-	pub fn send(&mut self, header: &mut crate::types::MessageHeader<'_>, body: Option<&crate::types::Variant<'_>>) -> Result<u32, crate::conn::SendError> {
+	pub fn send(&mut self, header: &mut crate::proto::MessageHeader<'_>, body: Option<&crate::proto::Variant<'_>>) -> Result<u32, crate::conn::SendError> {
 		// Serial is in the range 1..=u32::max_value() , ie it rolls over to 1 rather than 0
 		self.last_serial = self.last_serial % u32::max_value() + 1;
 		header.serial = self.last_serial;
 
 		if let Some(name) = &self.name {
 			// name is cloned because the lifetime of self.name needs to be independent of the lifetime of header
-			header.fields.to_mut().push(crate::types::MessageHeaderField::Sender(name.clone().into()));
+			header.fields.to_mut().push(crate::proto::MessageHeaderField::Sender(name.clone().into()));
 		}
 
 		let () = self.connection.send(header, body)?;
@@ -80,21 +80,21 @@ impl Client {
 	pub fn method_call(
 		&mut self,
 		destination: &str,
-		path: crate::types::ObjectPath<'_>,
+		path: crate::proto::ObjectPath<'_>,
 		interface: &str,
 		member: &str,
-		parameters: Option<&crate::types::Variant<'_>>,
-	) -> Result<Option<crate::types::Variant<'static>>, MethodCallError> {
+		parameters: Option<&crate::proto::Variant<'_>>,
+	) -> Result<Option<crate::proto::Variant<'static>>, MethodCallError> {
 		let request_header_fields = &[
-			crate::types::MessageHeaderField::Destination(destination.into()),
-			crate::types::MessageHeaderField::Interface(interface.into()),
+			crate::proto::MessageHeaderField::Destination(destination.into()),
+			crate::proto::MessageHeaderField::Interface(interface.into()),
 		][..];
-		let mut request_header = crate::types::MessageHeader {
-			r#type: crate::types::MessageType::MethodCall {
+		let mut request_header = crate::proto::MessageHeader {
+			r#type: crate::proto::MessageType::MethodCall {
 				member: member.into(),
 				path,
 			},
-			flags: crate::types::message_flags::NONE,
+			flags: crate::proto::message_flags::NONE,
 			body_len: 0,
 			serial: 0,
 			fields: request_header_fields.into(),
@@ -104,17 +104,17 @@ impl Client {
 
 		let response = self.recv_matching(|header, _| {
 			match header.r#type {
-				crate::types::MessageType::Error { reply_serial, .. } if reply_serial == request_header.serial => true,
-				crate::types::MessageType::MethodReturn { reply_serial, .. } if reply_serial == request_header.serial => true,
+				crate::proto::MessageType::Error { reply_serial, .. } if reply_serial == request_header.serial => true,
+				crate::proto::MessageType::MethodReturn { reply_serial, .. } if reply_serial == request_header.serial => true,
 				_ => false,
 			}
 		}).map_err(MethodCallError::RecvResponse)?;
 
 		match response.0.r#type {
-			crate::types::MessageType::Error { name, reply_serial: _ } =>
+			crate::proto::MessageType::Error { name, reply_serial: _ } =>
 				Err(MethodCallError::Error(name.into_owned(), response.1)),
 
-			crate::types::MessageType::MethodReturn { reply_serial: _ } =>
+			crate::proto::MessageType::MethodReturn { reply_serial: _ } =>
 				Ok(response.1),
 
 			_ => unreachable!(),
@@ -124,7 +124,7 @@ impl Client {
 	/// Receive a message from the message bus.
 	///
 	/// Blocks until a message is received.
-	pub fn recv(&mut self) -> Result<(crate::types::MessageHeader<'static>, Option<crate::types::Variant<'static>>), crate::conn::RecvError> {
+	pub fn recv(&mut self) -> Result<(crate::proto::MessageHeader<'static>, Option<crate::proto::Variant<'static>>), crate::conn::RecvError> {
 		if let Some(message) = self.received_messages.pop_front() {
 			return Ok(message);
 		}
@@ -138,8 +138,8 @@ impl Client {
 	/// from subsequent calls to [`Client::recv`] or `recv_matching`.
 	pub fn recv_matching(
 		&mut self,
-		mut predicate: impl FnMut(&crate::types::MessageHeader<'static>, Option<&crate::types::Variant<'static>>) -> bool,
-	) -> Result<(crate::types::MessageHeader<'static>, Option<crate::types::Variant<'static>>), crate::conn::RecvError> {
+		mut predicate: impl FnMut(&crate::proto::MessageHeader<'static>, Option<&crate::proto::Variant<'static>>) -> bool,
+	) -> Result<(crate::proto::MessageHeader<'static>, Option<crate::proto::Variant<'static>>), crate::conn::RecvError> {
 		for (i, already_received_message) in self.received_messages.iter().enumerate() {
 			if predicate(&already_received_message.0, already_received_message.1.as_ref()) {
 				let result = self.received_messages.remove(i).unwrap();
@@ -157,7 +157,7 @@ impl Client {
 		}
 	}
 
-	fn recv_new(&mut self) -> Result<(crate::types::MessageHeader<'static>, Option<crate::types::Variant<'static>>), crate::conn::RecvError> {
+	fn recv_new(&mut self) -> Result<(crate::proto::MessageHeader<'static>, Option<crate::proto::Variant<'static>>), crate::conn::RecvError> {
 		self.connection.recv()
 	}
 }
@@ -176,7 +176,7 @@ impl std::fmt::Debug for Client {
 #[derive(Debug)]
 pub enum CreateClientError {
 	Hello(MethodCallError),
-	UnexpectedMessage(crate::de::DeserializeError),
+	UnexpectedMessage(crate::proto::DeserializeError),
 }
 
 impl std::fmt::Display for CreateClientError {
@@ -200,7 +200,7 @@ impl std::error::Error for CreateClientError {
 /// An error from calling a method using a [`Client`].
 #[derive(Debug)]
 pub enum MethodCallError {
-	Error(String, Option<crate::types::Variant<'static>>),
+	Error(String, Option<crate::proto::Variant<'static>>),
 	RecvResponse(crate::conn::RecvError),
 	SendRequest(crate::conn::SendError),
 }
