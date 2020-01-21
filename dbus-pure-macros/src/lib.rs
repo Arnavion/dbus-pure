@@ -6,6 +6,9 @@
 //! This crate contains proc macros related to the [`dbus-pure-proto`](https://crates.io/crates/dbus-pure-proto) and
 //! [`dbus-pure`](https://crates.io/crates/dbus-pure) crates.
 
+#[allow(unused_extern_crates)] // Needed for stable 1.40.0 but not for nightly
+extern crate proc_macro;
+
 mod as_variant;
 
 mod interface;
