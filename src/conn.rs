@@ -16,7 +16,7 @@ pub enum BusPath<'a> {
 	Session,
 
 	/// The system bus. Its path will be determined from the `DBUS_SYSTEM_BUS_ADDRESS` environment variable if it exists,
-	/// with a fallback to `/var/run/dbus/system_bus_socket` if it doesn't.
+	/// with a fallback to `unix:path=/var/run/dbus/system_bus_socket` if it doesn't.
 	System,
 
 	/// A unix domain socket file at the specified filesystem path.
@@ -46,46 +46,20 @@ impl Connection {
 		let stream = match bus_path {
 			BusPath::Session => {
 				let bus_address = std::env::var_os("DBUS_SESSION_BUS_ADDRESS").ok_or_else(|| ConnectError::MissingSessionBusEnvVar)?;
-				let bus_path: &std::ffi::OsStr = {
-					let bus_address_bytes = std::os::unix::ffi::OsStrExt::as_bytes(&*bus_address);
-					if bus_address_bytes.starts_with(b"unix:path=") {
-						std::os::unix::ffi::OsStrExt::from_bytes(&bus_address_bytes["unix:path=".len()..])
-					}
-					else {
-						return Err(ConnectError::UnsupportedTransport(bus_address));
-					}
-				};
-				let bus_path = std::path::Path::new(bus_path);
-				let stream =
-					std::os::unix::net::UnixStream::connect(bus_path)
-					.map_err(|err| ConnectError::Connect { bus_path: bus_path.to_owned(), err, })?;
-				stream
+				connect(&bus_address)?
 			},
 
 			BusPath::System => {
 				let bus_address =
 					std::env::var_os("DBUS_SYSTEM_BUS_ADDRESS")
 					.unwrap_or_else(|| "unix:path=/var/run/dbus/system_bus_socket".into());
-				let bus_path: &std::ffi::OsStr = {
-					let bus_address_bytes = std::os::unix::ffi::OsStrExt::as_bytes(&*bus_address);
-					if bus_address_bytes.starts_with(b"unix:path=") {
-						std::os::unix::ffi::OsStrExt::from_bytes(&bus_address_bytes["unix:path=".len()..])
-					}
-					else {
-						return Err(ConnectError::UnsupportedTransport(bus_address));
-					}
-				};
-				let bus_path = std::path::Path::new(bus_path);
-				let stream =
-					std::os::unix::net::UnixStream::connect(bus_path)
-					.map_err(|err| ConnectError::Connect { bus_path: bus_path.to_owned(), err, })?;
-				stream
+				connect(&bus_address)?
 			},
 
 			BusPath::UnixSocketFile(bus_path) => {
 				let stream =
 					std::os::unix::net::UnixStream::connect(bus_path)
-					.map_err(|err| ConnectError::Connect { bus_path: bus_path.to_owned(), err, })?;
+					.map_err(|err| ConnectError::Connect(vec![(bus_path.to_owned(), err)]))?;
 				stream
 			},
 		};
@@ -215,10 +189,7 @@ impl Connection {
 pub enum ConnectError {
 	Authenticate(std::io::Error),
 
-	Connect {
-		bus_path: std::path::PathBuf,
-		err: std::io::Error,
-	},
+	Connect(Vec<(std::path::PathBuf, std::io::Error)>),
 
 	MissingSessionBusEnvVar,
 
@@ -229,8 +200,22 @@ impl std::fmt::Display for ConnectError {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			ConnectError::Authenticate(_) => f.write_str("could not authenticate with bus"),
-			ConnectError::Connect { bus_path, err: _ } => write!(f, "could not connect to bus path {}", bus_path.display()),
+
+			ConnectError::Connect(inner) => {
+				f.write_str("could not connect to any bus paths: [")?;
+				for (i, (bus_path, err)) in inner.iter().enumerate() {
+					if i > 0 {
+						f.write_str(", ")?;
+					}
+
+					write!(f, "{:?}: {:?}", bus_path, err.to_string())?;
+				}
+				f.write_str("]")?;
+				Ok(())
+			},
+
 			ConnectError::MissingSessionBusEnvVar => f.write_str("the DBUS_SESSION_BUS_ADDRESS env var is not set"),
+
 			ConnectError::UnsupportedTransport(value) => write!(f, "the bus path {:?} has an unsupported transport", value),
 		}
 	}
@@ -241,7 +226,7 @@ impl std::error::Error for ConnectError {
 		#[allow(clippy::match_same_arms)]
 		match self {
 			ConnectError::Authenticate(err) => Some(err),
-			ConnectError::Connect { bus_path: _, err } => Some(err),
+			ConnectError::Connect(_) => None,
 			ConnectError::MissingSessionBusEnvVar => None,
 			ConnectError::UnsupportedTransport(_) => None,
 		}
@@ -296,4 +281,54 @@ impl std::error::Error for RecvError {
 			RecvError::Io(err) => Some(err),
 		}
 	}
+}
+
+fn connect(bus_address: &std::ffi::OsStr) -> Result<std::os::unix::net::UnixStream, ConnectError> {
+	let bus_address_bytes = std::os::unix::ffi::OsStrExt::as_bytes(&*bus_address);
+
+	let mut connect_errs = vec![];
+
+	for bus_address_bytes in bus_address_bytes.split(|&b| b == b';') {
+		if !bus_address_bytes.starts_with(b"unix:") {
+			continue;
+		}
+		let bus_address_bytes = &bus_address_bytes[b"unix:".len()..];
+
+		let path =
+			bus_address_bytes.split(|&b| b == b',')
+			.find_map(|pair| {
+				let mut pair_parts = pair.splitn(2, |&b| b == b'=');
+
+				let key = pair_parts.next().expect("split returns at least one subslice");
+				if let Ok(key) = percent_encoding::percent_decode(key).decode_utf8() {
+					if key == "path" {
+						// We want to stop at the first `path` component even if it has no value,
+						// so return `Some(None)` in that case rather than `None`.
+						let value =
+							pair_parts.next()
+							.map(|value| {
+								let value: Vec<u8> = percent_encoding::percent_decode(value).collect();
+								let value: &std::ffi::OsStr = std::os::unix::ffi::OsStrExt::from_bytes(&value);
+								let value: std::path::PathBuf = value.into();
+								value
+							});
+						return Some(value);
+					}
+				}
+
+				None
+			});
+		if let Some(Some(path)) = path {
+			let stream = std::os::unix::net::UnixStream::connect(&path);
+			match stream {
+				Ok(stream) => return Ok(stream),
+				Err(err) => {
+					connect_errs.push((path, err));
+					continue;
+				},
+			}
+		}
+	}
+
+	Err(ConnectError::Connect(connect_errs))
 }

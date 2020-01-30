@@ -9,6 +9,7 @@ edition = "2018"
 dbus-pure-macros = { version = "0.1", path = "./dbus-pure-macros" }
 dbus-pure-proto = { version = "0.1", path = "./dbus-pure-proto" }
 libc = "0.2"
+percent-encoding = "2"
 serde = "1"
 
 [workspace]
