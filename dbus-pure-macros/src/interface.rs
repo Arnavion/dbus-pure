@@ -39,13 +39,17 @@ pub(super) fn run(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) 
 			else {
 				let mut arg_variants = vec![];
 				for arg in args {
-					let pat = match arg {
+					let (pat, ty) = match arg {
 						syn::FnArg::Receiver(_) => return Err("fn cannot have a receiver parameter").spanning(arg),
-						syn::FnArg::Typed(syn::PatType { pat, .. }) => pat,
+						syn::FnArg::Typed(syn::PatType { pat, ty, .. }) => (&**pat, &**ty)
 					};
-					let arg = match &**pat {
+					let ident = match pat {
 						syn::Pat::Ident(ident) => ident,
 						_ => return Err("fn parameters can only be idents, not arbitrary patterns").spanning(arg),
+					};
+					let arg = match ty {
+						syn::Type::Reference(_) => quote::quote!(#ident),
+						_ => quote::quote!(&#ident),
 					};
 					arg_variants.push(arg);
 				}
