@@ -17,14 +17,14 @@ pub struct MessageHeader<'a> {
 	pub fields: std::borrow::Cow<'a, [MessageHeaderField<'a>]>,
 }
 
-pub fn deserialize_message(buf: &[u8]) -> Result<(MessageHeader<'static>, Option<crate::Variant<'static>>, usize), crate::DeserializeError> {
+pub fn deserialize_message<'a>(buf: &'a [u8]) -> Result<(MessageHeader<'a>, Option<crate::Variant<'a>>, usize), crate::DeserializeError> {
 	// Arbitrarily pick `Endianness::Little` to initialize the deserializer. It'll be overridden as soon as the endianness marker is parsed.
 	let mut deserializer = crate::de::Deserializer::new(buf, 0, crate::Endianness::Little);
 
-	let EndiannessMarker(endianness) = serde::Deserialize::deserialize(&mut deserializer)?;
+	let EndiannessMarker(endianness) = EndiannessMarker::deserialize(&mut deserializer)?;
 	deserializer.set_endianness(endianness);
 
-	let message_header: MessageHeader<'static> = serde::Deserialize::deserialize(&mut deserializer)?;
+	let message_header = MessageHeader::deserialize(&mut deserializer)?;
 
 	deserializer.pad_to(8)?;
 
@@ -44,12 +44,11 @@ pub fn deserialize_message(buf: &[u8]) -> Result<(MessageHeader<'static>, Option
 					MessageHeaderField::Signature(signature) => Some(signature),
 					_ => None,
 				})
-				.ok_or_else(|| serde::de::Error::custom("message has non-empty body but not signature field in its header"))?;
-			let deserialize_seed = crate::VariantDeserializeSeed::new(signature);
+				.ok_or(crate::DeserializeError::MissingRequiredMessageHeaderField { method_name: "body-containing", header_field_name: "SIGNATURE" })?;
 
 			let mut deserializer = crate::de::Deserializer::new(&buf[..body_end_pos], body_start_pos, endianness);
 
-			let message_body: crate::Variant<'static> = serde::de::DeserializeSeed::deserialize(deserialize_seed, &mut deserializer)?;
+			let message_body = crate::Variant::deserialize(&mut deserializer, signature)?;
 
 			(Some(message_body), body_end_pos)
 		}
@@ -66,8 +65,6 @@ pub fn serialize_message(
 	buf: &mut Vec<u8>,
 	endianness: crate::Endianness,
 ) -> Result<(), crate::SerializeError> {
-	use serde::Serialize;
-
 	let header_fields = header.fields.to_mut();
 
 	match &mut header.r#type {
@@ -137,74 +134,65 @@ pub fn serialize_message(
 	Ok(())
 }
 
-impl<'de> serde::Deserialize<'de> for MessageHeader<'static> {
-	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
-		struct Visitor;
+impl<'de> MessageHeader<'de> {
+	fn deserialize(deserializer: &mut crate::de::Deserializer<'de>) -> Result<Self, crate::DeserializeError> {
+		let r#type = deserializer.deserialize_u8()?;
 
-		impl<'de> serde::de::Visitor<'de> for Visitor {
-			type Value = MessageHeader<'static>;
+		let flags = MessageFlags::deserialize(deserializer)?;
 
-			fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-				formatter.write_str("message header")
-			}
-
-			fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error> where A: serde::de::SeqAccess<'de> {
-				let r#type: u8 = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("type"))?;
-
-				let flags: MessageFlags = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("flags"))?;
-
-				let protocol_version: u8 = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("protocol_version"))?;
-				if protocol_version != 0x01 {
-					return Err(serde::de::Error::invalid_value(serde::de::Unexpected::Unsigned(protocol_version.into()), &"0x01"));
-				}
-
-				let body_len: u32 = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("body_len"))?;
-				let body_len: usize = std::convert::TryInto::try_into(body_len).map_err(serde::de::Error::custom)?;
-
-				let serial: u32 = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("serial"))?;
-
-				let fields: Vec<MessageHeaderField<'static>> =
-					seq.next_element_seed(crate::std2::VecDeserializeSeed::new(8))?
-					.ok_or_else(|| serde::de::Error::missing_field("fields"))?;
-
-				let (r#type, fields) = MessageType::from::<A>(r#type, fields)?;
-
-				Ok(MessageHeader {
-					r#type,
-					flags,
-					body_len,
-					serial,
-					fields: fields.into(),
-				})
-			}
+		let protocol_version = deserializer.deserialize_u8()?;
+		if protocol_version != 0x01 {
+			return Err(crate::DeserializeError::InvalidValue { expected: "0x01".into(), actual: protocol_version.to_string() });
 		}
 
-		deserializer.deserialize_tuple(7, Visitor)
+		let body_len = deserializer.deserialize_u32()?;
+		let body_len: usize = std::convert::TryInto::try_into(body_len).map_err(crate::DeserializeError::ExceedsNumericLimits)?;
+
+		let serial = deserializer.deserialize_u32()?;
+
+		let fields = deserializer.deserialize_array(8, MessageHeaderField::deserialize)?;
+
+		let (r#type, fields) = MessageType::from(r#type, fields)?;
+
+		Ok(MessageHeader {
+			r#type,
+			flags,
+			body_len,
+			serial,
+			fields: fields.into(),
+		})
+	}
+
+	pub fn into_owned(self) -> MessageHeader<'static> {
+		MessageHeader {
+			r#type: self.r#type.into_owned(),
+			flags: self.flags,
+			body_len: self.body_len,
+			serial: self.serial,
+			fields: self.fields.into_owned().into_iter().map(MessageHeaderField::into_owned).collect::<Vec<_>>().into(),
+		}
 	}
 }
 
-impl serde::Serialize for MessageHeader<'_> {
-	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
-		use serde::ser::SerializeTuple;
+impl MessageHeader<'_> {
+	fn serialize(&self, serializer: &mut crate::ser::Serializer<'_>) -> Result<(), crate::SerializeError> {
+		self.r#type.serialize(serializer)?;
 
-		let mut serializer = serializer.serialize_tuple(6)?;
+		self.flags.serialize(serializer)?;
 
-		serializer.serialize_element(&self.r#type)?;
+		serializer.serialize_u8(0x01_u8)?;
 
-		serializer.serialize_element(&self.flags)?;
+		crate::UsizeAsU32(self.body_len).serialize(serializer)?;
 
-		serializer.serialize_element(&0x01_u8)?;
+		serializer.serialize_u32(self.serial)?;
 
-		serializer.serialize_element(&crate::UsizeAsU32(self.body_len))?;
+		serializer.serialize_array(
+			1,
+			&self.fields,
+			MessageHeaderField::serialize,
+		)?;
 
-		serializer.serialize_element(&self.serial)?;
-
-		serializer.serialize_element(&crate::Slice {
-			inner: &self.fields,
-			alignment: 1,
-		})?;
-
-		serializer.end()
+		Ok(())
 	}
 }
 
@@ -232,11 +220,11 @@ pub enum MessageType<'a> {
 	},
 }
 
-impl MessageType<'static> {
-	fn from<'de, A>(
+impl<'a> MessageType<'a> {
+	fn from(
 		r#type: u8,
-		fields: Vec<MessageHeaderField<'static>>,
-	) -> Result<(Self, Vec<MessageHeaderField<'static>>), A::Error> where A: serde::de::SeqAccess<'de> {
+		fields: Vec<MessageHeaderField<'a>>,
+	) -> Result<(Self, Vec<MessageHeaderField<'a>>), crate::DeserializeError> {
 		// TODO: Use `Vec::drain_filter` when that stabilizes to mutate `fields` in place
 
 		let mut other_fields = vec![];
@@ -293,8 +281,12 @@ impl MessageType<'static> {
 
 		let r#type = match r#type {
 			0x01 => {
-				let member = member_field.ok_or_else(|| serde::de::Error::custom("METHOD_CALL message does not have MEMBER header field"))?;
-				let path = path_field.ok_or_else(|| serde::de::Error::custom("METHOD_CALL message does not have PATH header field"))?;
+				let member =
+					member_field
+					.ok_or(crate::DeserializeError::MissingRequiredMessageHeaderField { method_name: "METHOD_CALL", header_field_name: "MEMBER" })?;
+				let path =
+					path_field
+					.ok_or(crate::DeserializeError::MissingRequiredMessageHeaderField { method_name: "METHOD_CALL", header_field_name: "PATH" })?;
 				MessageType::MethodCall {
 					member,
 					path,
@@ -302,15 +294,21 @@ impl MessageType<'static> {
 			},
 
 			0x02 => {
-				let reply_serial = reply_serial_field.ok_or_else(|| serde::de::Error::custom("METHOD_RETURN message does not have REPLY_SERIAL header field"))?;
+				let reply_serial =
+					reply_serial_field
+					.ok_or(crate::DeserializeError::MissingRequiredMessageHeaderField { method_name: "METHOD_RETURN", header_field_name: "REPLY_SERIAL" })?;
 				MessageType::MethodReturn {
 					reply_serial,
 				}
 			},
 
 			0x03 => {
-				let name = error_name_field.ok_or_else(|| serde::de::Error::custom("ERROR message does not have NAME header field"))?;
-				let reply_serial = reply_serial_field.ok_or_else(|| serde::de::Error::custom("ERROR message does not have REPLY_SERIAL header field"))?;
+				let name =
+					error_name_field
+					.ok_or(crate::DeserializeError::MissingRequiredMessageHeaderField { method_name: "ERROR", header_field_name: "NAME" })?;
+				let reply_serial =
+					reply_serial_field
+					.ok_or(crate::DeserializeError::MissingRequiredMessageHeaderField { method_name: "ERROR", header_field_name: "REPLY_SERIAL" })?;
 				MessageType::Error {
 					name,
 					reply_serial,
@@ -318,9 +316,15 @@ impl MessageType<'static> {
 			},
 
 			0x04 => {
-				let interface = interface_field.ok_or_else(|| serde::de::Error::custom("SIGNAL message does not have INTERFACE header field"))?;
-				let member = member_field.ok_or_else(|| serde::de::Error::custom("SIGNAL message does not have MEMBER header field"))?;
-				let path = path_field.ok_or_else(|| serde::de::Error::custom("SIGNAL message does not have PATH header field"))?;
+				let interface =
+					interface_field
+					.ok_or(crate::DeserializeError::MissingRequiredMessageHeaderField { method_name: "SIGNAL", header_field_name: "INTERFACE" })?;
+				let member =
+					member_field
+					.ok_or(crate::DeserializeError::MissingRequiredMessageHeaderField { method_name: "SIGNAL", header_field_name: "MEMBER" })?;
+				let path =
+					path_field
+					.ok_or(crate::DeserializeError::MissingRequiredMessageHeaderField { method_name: "SIGNAL", header_field_name: "PATH" })?;
 				MessageType::Signal {
 					interface,
 					member,
@@ -328,22 +332,46 @@ impl MessageType<'static> {
 				}
 			},
 
-			v => return Err(serde::de::Error::invalid_value(serde::de::Unexpected::Unsigned(v.into()), &"one of 0x01, 0x02, 0x03, 0x04")),
+			v => return Err(crate::DeserializeError::InvalidValue { expected: "one of 0x01, 0x02, 0x03, 0x04".into(), actual: v.to_string() }),
 		};
 
 		Ok((r#type, other_fields))
 	}
+
+	fn into_owned(self) -> MessageType<'static> {
+		match self {
+			MessageType::Error { name, reply_serial } => MessageType::Error {
+				name: name.into_owned().into(),
+				reply_serial,
+			},
+
+			MessageType::MethodCall { member, path } => MessageType::MethodCall {
+				member: member.into_owned().into(),
+				path: path.into_owned(),
+			},
+
+			MessageType::MethodReturn { reply_serial } => MessageType::MethodReturn {
+				reply_serial,
+			},
+
+			MessageType::Signal { interface, member, path } => MessageType::Signal {
+				interface: interface.into_owned().into(),
+				member: member.into_owned().into(),
+				path: path.into_owned(),
+			},
+		}
+	}
 }
 
-impl serde::Serialize for MessageType<'_> {
-	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
-		let r#type: u8 = match self {
+impl MessageType<'_> {
+	fn serialize(&self, serializer: &mut crate::ser::Serializer<'_>) -> Result<(), crate::SerializeError> {
+		let r#type = match self {
 			MessageType::Error { .. } => 0x03,
 			MessageType::MethodCall { .. } => 0x01,
 			MessageType::MethodReturn { .. } => 0x02,
 			MessageType::Signal { .. } => 0x04,
 		};
-		r#type.serialize(serializer)
+		serializer.serialize_u8(r#type)
 	}
 }
 
@@ -361,29 +389,13 @@ impl std::ops::BitOr for MessageFlags {
 	}
 }
 
-impl<'de> serde::Deserialize<'de> for MessageFlags {
-	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
-		struct Visitor;
-
-		impl<'de> serde::de::Visitor<'de> for Visitor {
-			type Value = MessageFlags;
-
-			fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-				formatter.write_str("message flags")
-			}
-
-			fn visit_u8<E>(self, v: u8) -> Result<Self::Value, E> {
-				Ok(MessageFlags(v))
-			}
-		}
-
-		deserializer.deserialize_u8(Visitor)
+impl MessageFlags {
+	fn deserialize(deserializer: &mut crate::de::Deserializer<'_>) -> Result<Self, crate::DeserializeError> {
+		Ok(MessageFlags(deserializer.deserialize_u8()?))
 	}
-}
 
-impl serde::Serialize for MessageFlags {
-	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
-		self.0.serialize(serializer)
+	fn serialize(self, serializer: &mut crate::ser::Serializer<'_>) -> Result<(), crate::SerializeError> {
+		serializer.serialize_u8(self.0)
 	}
 }
 
@@ -421,172 +433,161 @@ pub enum MessageHeaderField<'a> {
 	},
 }
 
-impl<'de> serde::Deserialize<'de> for MessageHeaderField<'static> {
-	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
-		struct Visitor;
+impl<'de> MessageHeaderField<'de> {
+	fn deserialize(deserializer: &mut crate::de::Deserializer<'de>) -> Result<Self, crate::DeserializeError> {
+		deserializer.deserialize_struct(|deserializer| {
+			let code = deserializer.deserialize_u8()?;
 
-		impl<'de> serde::de::Visitor<'de> for Visitor {
-			type Value = MessageHeaderField<'static>;
+			let signature = crate::Signature::deserialize(deserializer)?;
+			let value = crate::Variant::deserialize(deserializer, &signature)?;
 
-			fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-				formatter.write_str("message header field")
+			#[allow(clippy::match_same_arms)]
+			match (code, value) {
+				(0x01, crate::Variant::ObjectPath(object_path)) =>
+					Ok(MessageHeaderField::Path(object_path)),
+				(0x01, value) =>
+					Err(crate::DeserializeError::InvalidValue { expected: "an object path".into(), actual: format!("{:?}", value) }),
+
+				(0x02, crate::Variant::String(name)) =>
+					Ok(MessageHeaderField::Interface(name)),
+				(0x02, value) =>
+					Err(crate::DeserializeError::InvalidValue { expected: "a string".into(), actual: format!("{:?}", value) }),
+
+				(0x03, crate::Variant::String(name)) =>
+					Ok(MessageHeaderField::Member(name)),
+				(0x03, value) =>
+					Err(crate::DeserializeError::InvalidValue { expected: "a string".into(), actual: format!("{:?}", value) }),
+
+				(0x04, crate::Variant::String(name)) =>
+					Ok(MessageHeaderField::ErrorName(name)),
+				(0x04, value) =>
+					Err(crate::DeserializeError::InvalidValue { expected: "a string".into(), actual: format!("{:?}", value) }),
+
+				(0x05, crate::Variant::U32(serial)) =>
+					Ok(MessageHeaderField::ReplySerial(serial)),
+				(0x05, value) =>
+					Err(crate::DeserializeError::InvalidValue { expected: "a string".into(), actual: format!("{:?}", value) }),
+
+				(0x06, crate::Variant::String(name)) =>
+					Ok(MessageHeaderField::Destination(name)),
+				(0x06, value) =>
+					Err(crate::DeserializeError::InvalidValue { expected: "a string".into(), actual: format!("{:?}", value) }),
+
+				(0x07, crate::Variant::String(name)) =>
+					Ok(MessageHeaderField::Sender(name)),
+				(0x07, value) =>
+					Err(crate::DeserializeError::InvalidValue { expected: "a string".into(), actual: format!("{:?}", value) }),
+
+				(0x08, crate::Variant::Signature(signature)) =>
+					Ok(MessageHeaderField::Signature(signature)),
+				(0x08, value) =>
+					Err(crate::DeserializeError::InvalidValue { expected: "a signature".into(), actual: format!("{:?}", value) }),
+
+				(0x09, crate::Variant::U32(num_unix_fds)) =>
+					Ok(MessageHeaderField::UnixFds(num_unix_fds)),
+				(0x09, value) =>
+					Err(crate::DeserializeError::InvalidValue { expected: "a u32".into(), actual: format!("{:?}", value) }),
+
+				(code, value) =>
+					Ok(MessageHeaderField::Unknown { code, value }),
 			}
+		})
+	}
 
-			fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error> where A: serde::de::MapAccess<'de> {
-				// TODO: Any way to make this symmetric with the Serialize impl?
-				//
-				// TODO: This currently reads *two* values for every key, so it's likely to explode with any third-party deserializer.
+	fn into_owned(self) -> MessageHeaderField<'static> {
+		match self {
+			MessageHeaderField::Destination(name) => MessageHeaderField::Destination(name.into_owned().into()),
 
-				let code: u8 = map.next_key()?.ok_or_else(|| serde::de::Error::missing_field("code"))?;
+			MessageHeaderField::ErrorName(name) => MessageHeaderField::ErrorName(name.into_owned().into()),
 
-				let signature: crate::Signature = map.next_value()?;
-				let seed = crate::VariantDeserializeSeed::new(&signature);
-				let value: crate::Variant<'static> = map.next_value_seed(seed)?;
+			MessageHeaderField::Interface(name) => MessageHeaderField::Interface(name.into_owned().into()),
 
-				#[allow(clippy::match_same_arms)]
-				match (code, value) {
-					(0x01, crate::Variant::ObjectPath(object_path)) =>
-						Ok(MessageHeaderField::Path(object_path)),
-					(0x01, value) => {
-						let unexpected = format!("{:?}", value);
-						Err(serde::de::Error::invalid_value(serde::de::Unexpected::Other(&unexpected), &"object path"))
-					},
+			MessageHeaderField::Member(name) => MessageHeaderField::Member(name.into_owned().into()),
 
-					(0x02, crate::Variant::String(name)) =>
-						Ok(MessageHeaderField::Interface(name)),
-					(0x02, value) => {
-						let unexpected = format!("{:?}", value);
-						Err(serde::de::Error::invalid_value(serde::de::Unexpected::Other(&unexpected), &"string"))
-					},
+			MessageHeaderField::Path(object_path) => MessageHeaderField::Path(object_path.into_owned()),
 
-					(0x03, crate::Variant::String(name)) =>
-						Ok(MessageHeaderField::Member(name)),
-					(0x03, value) => {
-						let unexpected = format!("{:?}", value);
-						Err(serde::de::Error::invalid_value(serde::de::Unexpected::Other(&unexpected), &"string"))
-					},
+			MessageHeaderField::ReplySerial(value) => MessageHeaderField::ReplySerial(value),
 
-					(0x04, crate::Variant::String(name)) =>
-						Ok(MessageHeaderField::ErrorName(name)),
-					(0x04, value) => {
-						let unexpected = format!("{:?}", value);
-						Err(serde::de::Error::invalid_value(serde::de::Unexpected::Other(&unexpected), &"string"))
-					},
+			MessageHeaderField::Sender(name) => MessageHeaderField::Sender(name.into_owned().into()),
 
-					(0x05, crate::Variant::U32(serial)) =>
-						Ok(MessageHeaderField::ReplySerial(serial)),
-					(0x05, value) => {
-						let unexpected = format!("{:?}", value);
-						Err(serde::de::Error::invalid_value(serde::de::Unexpected::Other(&unexpected), &"serial"))
-					},
+			MessageHeaderField::Signature(signature) => MessageHeaderField::Signature(signature),
 
-					(0x06, crate::Variant::String(name)) =>
-						Ok(MessageHeaderField::Destination(name)),
-					(0x06, value) => {
-						let unexpected = format!("{:?}", value);
-						Err(serde::de::Error::invalid_value(serde::de::Unexpected::Other(&unexpected), &"string"))
-					},
+			MessageHeaderField::UnixFds(num_unix_fds) => MessageHeaderField::UnixFds(num_unix_fds),
 
-					(0x07, crate::Variant::String(name)) =>
-						Ok(MessageHeaderField::Sender(name)),
-					(0x07, value) => {
-						let unexpected = format!("{:?}", value);
-						Err(serde::de::Error::invalid_value(serde::de::Unexpected::Other(&unexpected), &"string"))
-					},
-
-					(0x08, crate::Variant::Signature(signature)) =>
-						Ok(MessageHeaderField::Signature(signature)),
-					(0x08, value) => {
-						let unexpected = format!("{:?}", value);
-						Err(serde::de::Error::invalid_value(serde::de::Unexpected::Other(&unexpected), &"signature"))
-					},
-
-					(0x09, crate::Variant::U32(num_unix_fds)) =>
-						Ok(MessageHeaderField::UnixFds(num_unix_fds)),
-					(0x09, value) => {
-						let unexpected = format!("{:?}", value);
-						Err(serde::de::Error::invalid_value(serde::de::Unexpected::Other(&unexpected), &"u32"))
-					},
-
-					(code, value) =>
-						Ok(MessageHeaderField::Unknown { code, value }),
-				}
-			}
+			MessageHeaderField::Unknown { code, value } => MessageHeaderField::Unknown {
+				code,
+				value: value.into_owned(),
+			},
 		}
-
-		deserializer.deserialize_struct("MessageHeaderField", &["code", "signature", "value"], Visitor)
 	}
 }
 
-impl serde::Serialize for MessageHeaderField<'_> {
-	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
-		use serde::ser::SerializeStruct;
-
+impl MessageHeaderField<'_> {
+	fn serialize(&self, serializer: &mut crate::ser::Serializer<'_>) -> Result<(), crate::SerializeError> {
 		let (code, value) = match self {
 			MessageHeaderField::Destination(name) =>
-				(0x06_u8, std::borrow::Cow::Owned(crate::Variant::String(name.clone()))),
+				(0x06, std::borrow::Cow::Owned(crate::Variant::String(name.clone()))),
 
 			MessageHeaderField::ErrorName(name) =>
-				(0x04_u8, std::borrow::Cow::Owned(crate::Variant::String(name.clone()))),
+				(0x04, std::borrow::Cow::Owned(crate::Variant::String(name.clone()))),
 
 			MessageHeaderField::Interface(name) =>
-				(0x02_u8, std::borrow::Cow::Owned(crate::Variant::String(name.clone()))),
+				(0x02, std::borrow::Cow::Owned(crate::Variant::String(name.clone()))),
 
 			MessageHeaderField::Member(name) =>
-				(0x03_u8, std::borrow::Cow::Owned(crate::Variant::String(name.clone()))),
+				(0x03, std::borrow::Cow::Owned(crate::Variant::String(name.clone()))),
 
 			MessageHeaderField::Path(object_path) =>
-				(0x01_u8, std::borrow::Cow::Owned(crate::Variant::ObjectPath(object_path.clone()))),
+				(0x01, std::borrow::Cow::Owned(crate::Variant::ObjectPath(object_path.clone()))),
 
 			MessageHeaderField::ReplySerial(value) =>
-				(0x05_u8, std::borrow::Cow::Owned(crate::Variant::U32(*value))),
+				(0x05, std::borrow::Cow::Owned(crate::Variant::U32(*value))),
 
 			MessageHeaderField::Sender(name) =>
-				(0x07_u8, std::borrow::Cow::Owned(crate::Variant::String(name.clone()))),
+				(0x07, std::borrow::Cow::Owned(crate::Variant::String(name.clone()))),
 
 			MessageHeaderField::Signature(signature) =>
-				(0x08_u8, std::borrow::Cow::Owned(crate::Variant::Signature(signature.clone()))),
+				(0x08, std::borrow::Cow::Owned(crate::Variant::Signature(signature.clone()))),
 
 			MessageHeaderField::UnixFds(num_unix_fds) =>
-				(0x09_u8, std::borrow::Cow::Owned(crate::Variant::U32(*num_unix_fds))),
+				(0x09, std::borrow::Cow::Owned(crate::Variant::U32(*num_unix_fds))),
 
 			MessageHeaderField::Unknown { code, value } =>
 				(*code, std::borrow::Cow::Borrowed(value)),
 		};
 
-		let mut serializer = serializer.serialize_struct("MessageHeaderField", 2)?;
+		serializer.serialize_struct(|serializer| {
+			serializer.serialize_u8(code)?;
 
-		serializer.serialize_field("code", &code)?;
+			let signature = value.inner_signature();
+			signature.serialize(serializer)?;
 
-		let signature = value.inner_signature();
-		serializer.serialize_field("signature", &signature)?;
+			value.serialize(serializer)?;
 
-		serializer.serialize_field("value", &value)?;
-
-		serializer.end()
+			Ok(())
+		})
 	}
 }
 
+#[derive(Clone, Copy)]
 struct EndiannessMarker(crate::Endianness);
 
-impl<'de> serde::Deserialize<'de> for EndiannessMarker {
-	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
-		let endianness_marker: u8 = serde::Deserialize::deserialize(deserializer)?;
+impl EndiannessMarker {
+	fn deserialize(deserializer: &mut crate::de::Deserializer<'_>) -> Result<Self, crate::DeserializeError> {
+		let endianness_marker = deserializer.deserialize_u8()?;
 		let endianness = match endianness_marker {
 			b'B' => crate::Endianness::Big,
 			b'l' => crate::Endianness::Little,
-			endianness_marker => return Err(serde::de::Error::invalid_value(serde::de::Unexpected::Unsigned(endianness_marker.into()), &"b'B' or b'l'")),
+			endianness_marker => return Err(crate::DeserializeError::InvalidValue { expected: "b'B' or b'l'".into(), actual: endianness_marker.to_string() }),
 		};
 		Ok(EndiannessMarker(endianness))
 	}
-}
 
-impl serde::Serialize for EndiannessMarker {
-	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
-		let endianness_marker: u8 = match self.0 {
+	fn serialize(self, serializer: &mut crate::ser::Serializer<'_>) -> Result<(), crate::SerializeError> {
+		let endianness_marker = match self.0 {
 			crate::Endianness::Big => b'B',
 			crate::Endianness::Little => b'l',
 		};
-		endianness_marker.serialize(serializer)
+		serializer.serialize_u8(endianness_marker)
 	}
 }

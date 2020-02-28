@@ -1,5 +1,5 @@
 impl<'de, 'a> serde::Deserializer<'de> for crate::Variant<'de> {
-	type Error = crate::DeserializeError;
+	type Error = VariantDeserializeError;
 
 	fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
 		#[allow(clippy::match_same_arms)]
@@ -16,9 +16,9 @@ impl<'de, 'a> serde::Deserializer<'de> for crate::Variant<'de> {
 								Ok((key.into_owned(), value.into_owned()))
 							}
 							else {
-								Err(crate::DeserializeError::ArrayElementDoesntMatchSignature {
-									expected: element_signature.clone(),
-									actual: element.inner_signature(),
+								Err(VariantDeserializeError::InvalidValue {
+									expected: format!("array element with signature {}", element_signature).into(),
+									actual: format!("array element with signature {}", element.inner_signature()),
 								})
 							});
 					visitor.visit_map(MapAccess {
@@ -145,7 +145,7 @@ impl<'de, 'a> serde::Deserializer<'de> for crate::Variant<'de> {
 struct SeqAccess<I>(I);
 
 impl<'de, I> serde::de::SeqAccess<'de> for SeqAccess<I> where I: Iterator<Item = crate::Variant<'de>> {
-	type Error = crate::DeserializeError;
+	type Error = VariantDeserializeError;
 
 	fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error> where T: serde::de::DeserializeSeed<'de> {
 		self.0.next()
@@ -159,8 +159,8 @@ struct MapAccess<'de, I> {
 	next_value: Option<crate::Variant<'de>>,
 }
 
-impl<'de, I> serde::de::MapAccess<'de> for MapAccess<'de, I> where I: Iterator<Item = Result<(crate::Variant<'de>, crate::Variant<'de>), crate::DeserializeError>> {
-	type Error = crate::DeserializeError;
+impl<'de, I> serde::de::MapAccess<'de> for MapAccess<'de, I> where I: Iterator<Item = Result<(crate::Variant<'de>, crate::Variant<'de>), VariantDeserializeError>> {
+	type Error = VariantDeserializeError;
 
 	fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Self::Error> where K: serde::de::DeserializeSeed<'de> {
 		let (key, value) = match self.entries.next() {
@@ -173,6 +173,39 @@ impl<'de, I> serde::de::MapAccess<'de> for MapAccess<'de, I> where I: Iterator<I
 
 	fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error> where V: serde::de::DeserializeSeed<'de> {
 		seed.deserialize(self.next_value.take().unwrap())
+	}
+}
+
+/// An error from deserializing a value from a [`crate::Variant`]
+#[derive(Debug)]
+pub enum VariantDeserializeError {
+	Custom(String),
+	InvalidValue { expected: std::borrow::Cow<'static, str>, actual: String },
+}
+
+impl std::fmt::Display for VariantDeserializeError {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		#[allow(clippy::match_same_arms)]
+		match self {
+			VariantDeserializeError::Custom(message) => f.write_str(message),
+			VariantDeserializeError::InvalidValue { expected, actual } => write!(f, "expected {} but got {}", expected, actual),
+		}
+	}
+}
+
+impl std::error::Error for VariantDeserializeError {
+	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+		#[allow(clippy::match_same_arms)]
+		match self {
+			VariantDeserializeError::Custom(_) => None,
+			VariantDeserializeError::InvalidValue { expected: _, actual: _ } => None,
+		}
+	}
+}
+
+impl serde::de::Error for VariantDeserializeError {
+	fn custom<T>(msg: T) -> Self where T: std::fmt::Display {
+		VariantDeserializeError::Custom(msg.to_string())
 	}
 }
 

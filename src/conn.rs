@@ -153,6 +153,8 @@ impl Connection {
 		loop {
 			match crate::proto::deserialize_message(&self.read_buf[..self.read_end]) {
 				Ok((message_header, message_body, read)) => {
+					let message_header = message_header.into_owned();
+					let message_body = message_body.map(crate::proto::Variant::into_owned);
 					self.read_buf.copy_within(read..self.read_end, 0);
 					self.read_end -= read;
 					return Ok((message_header, message_body));

@@ -38,16 +38,50 @@ impl<'de> Deserializer<'de> {
 	pub(crate) fn set_endianness(&mut self, endianness: crate::Endianness) {
 		self.endianness = endianness;
 	}
-}
 
-impl<'de> serde::Deserializer<'de> for &'_ mut Deserializer<'de> {
-	type Error = DeserializeError;
+	pub(crate) fn deserialize_array<T>(
+		&mut self,
+		element_alignment: usize,
+		mut f: impl FnMut(&mut Deserializer<'de>) -> Result<T, DeserializeError>,
+	) -> Result<Vec<T>, DeserializeError> {
+		let data_len = self.deserialize_u32()?;
+		let data_len: usize = std::convert::TryInto::try_into(data_len).map_err(crate::DeserializeError::ExceedsNumericLimits)?;
 
-	fn deserialize_any<V>(self, _visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		Err(DeserializeError::DeserializeAnyNotSupported)
+		self.pad_to(element_alignment)?;
+
+		let data_end_pos = self.pos + data_len;
+
+		let mut inner = Deserializer {
+			buf: &self.buf.get(..data_end_pos).ok_or(DeserializeError::EndOfInput)?,
+			pos: self.pos,
+			endianness: self.endianness,
+		};
+
+		let mut result = vec![];
+
+		while inner.pos != inner.buf.len() {
+			result.push(f(&mut inner)?);
+		}
+
+		self.pos = inner.pos;
+
+		Ok(result)
 	}
 
-	fn deserialize_bool<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
+	pub(crate) fn deserialize_array_u8(&mut self) -> Result<&'de [u8], DeserializeError> {
+		let data_len = self.deserialize_u32()?;
+		let data_len: usize = std::convert::TryInto::try_into(data_len).map_err(crate::DeserializeError::ExceedsNumericLimits)?;
+
+		let data_end_pos = self.pos + data_len;
+
+		let result = self.buf.get(self.pos..data_end_pos).ok_or(DeserializeError::EndOfInput)?;
+
+		self.pos = data_end_pos;
+
+		Ok(result)
+	}
+
+	pub(crate) fn deserialize_bool(&mut self) -> Result<bool, DeserializeError> {
 		self.pad_to(4)?;
 
 		if self.buf.len() < self.pos + 4 {
@@ -60,122 +94,13 @@ impl<'de> serde::Deserializer<'de> for &'_ mut Deserializer<'de> {
 		let value: &[_; 4] = std::convert::TryInto::try_into(value).expect("infallible");
 		let value = self.endianness.u32_from_bytes(*value);
 		match value {
-			0 => visitor.visit_bool(false),
-			1 => visitor.visit_bool(true),
-			value => Err(serde::de::Error::invalid_value(serde::de::Unexpected::Unsigned(value.into()), &"0 or 1")),
+			0 => Ok(false),
+			1 => Ok(true),
+			value => Err(DeserializeError::InvalidValue { expected: "0 or 1".into(), actual: value.to_string() }),
 		}
 	}
 
-	fn deserialize_i8<V>(self, _visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		unimplemented!();
-	}
-
-	fn deserialize_i16<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		self.pad_to(2)?;
-
-		if self.buf.len() < self.pos + 2 {
-			return Err(DeserializeError::EndOfInput);
-		}
-
-		let value: &[_] = &self.buf[self.pos..(self.pos + 2)];
-		self.pos += 2;
-
-		let value: &[_; 2] = std::convert::TryInto::try_into(value).expect("infallible");
-		let value = self.endianness.i16_from_bytes(*value);
-		visitor.visit_i16(value)
-	}
-
-	fn deserialize_i32<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		self.pad_to(4)?;
-
-		if self.buf.len() < self.pos + 4 {
-			return Err(DeserializeError::EndOfInput);
-		}
-
-		let value: &[_] = &self.buf[self.pos..(self.pos + 4)];
-		self.pos += 4;
-
-		let value: &[_; 4] = std::convert::TryInto::try_into(value).expect("infallible");
-		let value = self.endianness.i32_from_bytes(*value);
-		visitor.visit_i32(value)
-	}
-
-	fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		self.pad_to(8)?;
-
-		if self.buf.len() < self.pos + 8 {
-			return Err(DeserializeError::EndOfInput);
-		}
-
-		let value: &[_] = &self.buf[self.pos..(self.pos + 8)];
-		self.pos += 8;
-
-		let value: &[_; 8] = std::convert::TryInto::try_into(value).expect("infallible");
-		let value = self.endianness.i64_from_bytes(*value);
-		visitor.visit_i64(value)
-	}
-
-	fn deserialize_u8<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		if self.buf.len() < self.pos + 1 {
-			return Err(DeserializeError::EndOfInput);
-		}
-
-		let value = self.buf[self.pos];
-		self.pos += 1;
-
-		visitor.visit_u8(value)
-	}
-
-	fn deserialize_u16<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		self.pad_to(2)?;
-
-		if self.buf.len() < self.pos + 2 {
-			return Err(DeserializeError::EndOfInput);
-		}
-
-		let value: &[_] = &self.buf[self.pos..(self.pos + 2)];
-		self.pos += 2;
-
-		let value: &[_; 2] = std::convert::TryInto::try_into(value).expect("infallible");
-		let value = self.endianness.u16_from_bytes(*value);
-		visitor.visit_u16(value)
-	}
-
-	fn deserialize_u32<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		self.pad_to(4)?;
-
-		if self.buf.len() < self.pos + 4 {
-			return Err(DeserializeError::EndOfInput);
-		}
-
-		let value: &[_] = &self.buf[self.pos..(self.pos + 4)];
-		self.pos += 4;
-
-		let value: &[_; 4] = std::convert::TryInto::try_into(value).expect("infallible");
-		let value = self.endianness.u32_from_bytes(*value);
-		visitor.visit_u32(value)
-	}
-
-	fn deserialize_u64<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		self.pad_to(8)?;
-
-		if self.buf.len() < self.pos + 8 {
-			return Err(DeserializeError::EndOfInput);
-		}
-
-		let value: &[_] = &self.buf[self.pos..(self.pos + 8)];
-		self.pos += 8;
-
-		let value: &[_; 8] = std::convert::TryInto::try_into(value).expect("infallible");
-		let value = self.endianness.u64_from_bytes(*value);
-		visitor.visit_u64(value)
-	}
-
-	fn deserialize_f32<V>(self, _visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		unimplemented!();
-	}
-
-	fn deserialize_f64<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
+	pub(crate) fn deserialize_f64(&mut self) -> Result<f64, DeserializeError> {
 		self.pad_to(8)?;
 
 		if self.buf.len() < self.pos + 8 {
@@ -187,19 +112,56 @@ impl<'de> serde::Deserializer<'de> for &'_ mut Deserializer<'de> {
 
 		let value: &[_; 8] = std::convert::TryInto::try_into(value).expect("infallible");
 		let value = self.endianness.f64_from_bytes(*value);
-		visitor.visit_f64(value)
+		Ok(value)
 	}
 
-	fn deserialize_char<V>(self, _visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		unimplemented!();
+	pub(crate) fn deserialize_i16(&mut self) -> Result<i16, DeserializeError> {
+		self.pad_to(2)?;
+
+		if self.buf.len() < self.pos + 2 {
+			return Err(DeserializeError::EndOfInput);
+		}
+
+		let value: &[_] = &self.buf[self.pos..(self.pos + 2)];
+		self.pos += 2;
+
+		let value: &[_; 2] = std::convert::TryInto::try_into(value).expect("infallible");
+		let value = self.endianness.i16_from_bytes(*value);
+		Ok(value)
 	}
 
-	fn deserialize_str<V>(self, _visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		unimplemented!();
+	pub(crate) fn deserialize_i32(&mut self) -> Result<i32, DeserializeError> {
+		self.pad_to(4)?;
+
+		if self.buf.len() < self.pos + 4 {
+			return Err(DeserializeError::EndOfInput);
+		}
+
+		let value: &[_] = &self.buf[self.pos..(self.pos + 4)];
+		self.pos += 4;
+
+		let value: &[_; 4] = std::convert::TryInto::try_into(value).expect("infallible");
+		let value = self.endianness.i32_from_bytes(*value);
+		Ok(value)
 	}
 
-	fn deserialize_string<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		let len: u32 = serde::Deserialize::deserialize(&mut *self)?;
+	pub(crate) fn deserialize_i64(&mut self) -> Result<i64, DeserializeError> {
+		self.pad_to(8)?;
+
+		if self.buf.len() < self.pos + 8 {
+			return Err(DeserializeError::EndOfInput);
+		}
+
+		let value: &[_] = &self.buf[self.pos..(self.pos + 8)];
+		self.pos += 8;
+
+		let value: &[_; 8] = std::convert::TryInto::try_into(value).expect("infallible");
+		let value = self.endianness.i64_from_bytes(*value);
+		Ok(value)
+	}
+
+	pub(crate) fn deserialize_string(&mut self) -> Result<&'de str, DeserializeError> {
+		let len = self.deserialize_u32()?;
 		let len: usize = std::convert::TryInto::try_into(len).map_err(DeserializeError::ExceedsNumericLimits)?;
 
 		if self.buf.len() < self.pos + len + 1 {
@@ -213,161 +175,99 @@ impl<'de> serde::Deserializer<'de> for &'_ mut Deserializer<'de> {
 		self.pos += len + 1;
 
 		let s = std::str::from_utf8(data).map_err(DeserializeError::InvalidUtf8)?;
-		visitor.visit_borrowed_str(s)
+		Ok(s)
 	}
 
-	fn deserialize_bytes<V>(self, _visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		unimplemented!();
-	}
-
-	fn deserialize_byte_buf<V>(self, _visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		unimplemented!();
-	}
-
-	fn deserialize_option<V>(self, _visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		unimplemented!();
-	}
-
-	fn deserialize_unit<V>(self, _visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		unimplemented!();
-	}
-
-	fn deserialize_unit_struct<V>(self, _name: &'static str, _visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		unimplemented!();
-	}
-
-	fn deserialize_newtype_struct<V>(self, _name: &'static str, _visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		unimplemented!();
-	}
-
-	// Since we need the Deserialize to pass in alignment information, we want it to use deserialize_tuple_struct instead.
-	fn deserialize_seq<V>(self, _visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		unimplemented!();
-	}
-
-	fn deserialize_tuple<V>(self, _len: usize, visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		visitor.visit_seq(TupleDeserializer(self))
-	}
-
-	// HACK: This deserializes a sequence, not a tuple struct. We use this instead of deserialize_seq because we need the Deserialize impl to pass in
-	// the alignment of the value it's deserializing, so that we can skip padding for empty arrays. So we (ab)use the `len` parameter to pass that in.
-	fn deserialize_tuple_struct<V>(self, _name: &'static str, len: usize, visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		let data_len: u32 = serde::de::Deserialize::deserialize(&mut *self)?;
-		let data_len: usize = std::convert::TryInto::try_into(data_len).map_err(serde::de::Error::custom)?;
-
-		self.pad_to(len)?;
-
-		let data_end_pos = self.pos + data_len;
-
-		let mut inner = Deserializer {
-			buf: &self.buf.get(..data_end_pos).ok_or(DeserializeError::EndOfInput)?,
-			pos: self.pos,
-			endianness: self.endianness,
-		};
-
-		let result = visitor.visit_seq(SeqDeserializer(&mut inner))?;
-
-		self.pos = inner.pos;
-
-		Ok(result)
-	}
-
-	fn deserialize_map<V>(self, _visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		unimplemented!();
-	}
-
-	fn deserialize_struct<V>(self, _name: &'static str, _fields: &'static [&'static str], visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
+	pub(crate) fn deserialize_struct<T>(
+		&mut self,
+		f: impl FnOnce(&mut Deserializer<'de>) -> Result<T, DeserializeError>,
+	) -> Result<T, DeserializeError> {
 		self.pad_to(8)?;
 
-		visitor.visit_map(StructDeserializer(self))
+		f(self)
 	}
 
-	fn deserialize_enum<V>(self, _name: &'static str, _variants: &'static [&'static str], _visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		unimplemented!();
-	}
-
-	fn deserialize_identifier<V>(self, _visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		unimplemented!();
-	}
-
-	fn deserialize_ignored_any<V>(self, _visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
-		unimplemented!();
-	}
-
-	fn is_human_readable(&self) -> bool {
-		false
-	}
-}
-
-struct SeqDeserializer<'de, 'a>(&'a mut Deserializer<'de>);
-
-impl<'de, 'a> serde::de::SeqAccess<'de> for SeqDeserializer<'de, 'a> {
-	type Error = DeserializeError;
-
-	fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error> where T: serde::de::DeserializeSeed<'de> {
-		if self.0.pos == self.0.buf.len() {
-			Ok(None)
+	pub(crate) fn deserialize_u8(&mut self) -> Result<u8, DeserializeError> {
+		if self.buf.len() < self.pos + 1 {
+			return Err(DeserializeError::EndOfInput);
 		}
-		else {
-			seed.deserialize(&mut *self.0).map(Some)
+
+		let value = self.buf[self.pos];
+		self.pos += 1;
+
+		Ok(value)
+	}
+
+	pub(crate) fn deserialize_u16(&mut self) -> Result<u16, DeserializeError> {
+		self.pad_to(2)?;
+
+		if self.buf.len() < self.pos + 2 {
+			return Err(DeserializeError::EndOfInput);
 		}
-	}
-}
 
-struct TupleDeserializer<'de, 'a>(&'a mut Deserializer<'de>);
+		let value: &[_] = &self.buf[self.pos..(self.pos + 2)];
+		self.pos += 2;
 
-impl<'de, 'a> serde::de::SeqAccess<'de> for TupleDeserializer<'de, 'a> {
-	type Error = DeserializeError;
-
-	fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, Self::Error> where T: serde::de::DeserializeSeed<'de> {
-		seed.deserialize(&mut *self.0).map(Some)
-	}
-}
-
-struct StructDeserializer<'de, 'a>(&'a mut Deserializer<'de>);
-
-impl<'de, 'a> serde::de::MapAccess<'de> for StructDeserializer<'de, 'a> {
-	type Error = DeserializeError;
-
-	fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Self::Error> where K: serde::de::DeserializeSeed<'de> {
-		seed.deserialize(&mut *self.0).map(Some)
+		let value: &[_; 2] = std::convert::TryInto::try_into(value).expect("infallible");
+		let value = self.endianness.u16_from_bytes(*value);
+		Ok(value)
 	}
 
-	fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error> where V: serde::de::DeserializeSeed<'de> {
-		seed.deserialize(&mut *self.0)
+	pub(crate) fn deserialize_u32(&mut self) -> Result<u32, DeserializeError> {
+		self.pad_to(4)?;
+
+		if self.buf.len() < self.pos + 4 {
+			return Err(DeserializeError::EndOfInput);
+		}
+
+		let value: &[_] = &self.buf[self.pos..(self.pos + 4)];
+		self.pos += 4;
+
+		let value: &[_; 4] = std::convert::TryInto::try_into(value).expect("infallible");
+		let value = self.endianness.u32_from_bytes(*value);
+		Ok(value)
+	}
+
+	pub(crate) fn deserialize_u64(&mut self) -> Result<u64, DeserializeError> {
+		self.pad_to(8)?;
+
+		if self.buf.len() < self.pos + 8 {
+			return Err(DeserializeError::EndOfInput);
+		}
+
+		let value: &[_] = &self.buf[self.pos..(self.pos + 8)];
+		self.pos += 8;
+
+		let value: &[_; 8] = std::convert::TryInto::try_into(value).expect("infallible");
+		let value = self.endianness.u64_from_bytes(*value);
+		Ok(value)
 	}
 }
 
 /// An error from deserializing a value using the D-Bus binary protocol.
 #[derive(Debug)]
 pub enum DeserializeError {
-	ArrayElementDoesntMatchSignature { expected: crate::Signature, actual: crate::Signature },
-	Custom(String),
-	DeserializeAnyNotSupported,
 	EndOfInput,
 	ExceedsNumericLimits(std::num::TryFromIntError),
 	InvalidUtf8(std::str::Utf8Error),
+	InvalidValue { expected: std::borrow::Cow<'static, str>, actual: String },
+	MissingRequiredMessageHeaderField { method_name: &'static str, header_field_name: &'static str },
 	NonZeroPadding { start: usize, end: usize },
 	StringMissingNulTerminator,
-	Unexpected(String),
 }
 
 impl std::fmt::Display for DeserializeError {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		#[allow(clippy::match_same_arms)]
 		match self {
-			DeserializeError::ArrayElementDoesntMatchSignature { expected, actual } => write!(f,
-				"array has element signature {} but it contains an element with signature {}",
-				expected, actual,
-			),
-			DeserializeError::Custom(message) => f.write_str(message),
-			DeserializeError::DeserializeAnyNotSupported => f.write_str("deserialize_any is not supported"),
 			DeserializeError::EndOfInput => f.write_str("end of input"),
 			DeserializeError::ExceedsNumericLimits(_) => f.write_str("value exceeds numeric limits"),
 			DeserializeError::InvalidUtf8(_) => f.write_str("deserialized string is not valid UTF-8"),
+			DeserializeError::InvalidValue { expected, actual } => write!(f, "expected {} but got {}", expected, actual),
+			DeserializeError::MissingRequiredMessageHeaderField { method_name, header_field_name } =>
+				write!(f, "{} message is missing {} required header field", method_name, header_field_name),
 			DeserializeError::NonZeroPadding { start, end } => write!(f, "padding contains a byte other than 0x00 between positions {} and {}", start, end),
 			DeserializeError::StringMissingNulTerminator => f.write_str("deserialized string is not nul-terminated"),
-			DeserializeError::Unexpected(message) => f.write_str(message),
 		}
 	}
 }
@@ -376,21 +276,13 @@ impl std::error::Error for DeserializeError {
 	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
 		#[allow(clippy::match_same_arms)]
 		match self {
-			DeserializeError::ArrayElementDoesntMatchSignature { expected: _, actual: _ } => None,
-			DeserializeError::Custom(_) => None,
-			DeserializeError::DeserializeAnyNotSupported => None,
 			DeserializeError::EndOfInput => None,
 			DeserializeError::ExceedsNumericLimits(err) => Some(err),
 			DeserializeError::InvalidUtf8(err) => Some(err),
+			DeserializeError::InvalidValue { expected: _, actual: _ } => None,
+			DeserializeError::MissingRequiredMessageHeaderField { method_name: _, header_field_name: _ } => None,
 			DeserializeError::NonZeroPadding { start: _, end: _ } => None,
 			DeserializeError::StringMissingNulTerminator => None,
-			DeserializeError::Unexpected(_) => None,
 		}
-	}
-}
-
-impl serde::de::Error for DeserializeError {
-	fn custom<T>(msg: T) -> Self where T: std::fmt::Display {
-		DeserializeError::Custom(msg.to_string())
 	}
 }

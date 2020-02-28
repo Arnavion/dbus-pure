@@ -195,7 +195,7 @@ pub enum MethodCallError {
 	Error(String, Option<crate::proto::Variant<'static>>),
 	RecvResponse(crate::conn::RecvError),
 	SendRequest(crate::conn::SendError),
-	UnexpectedResponse(Option<crate::proto::DeserializeError>),
+	UnexpectedResponse(Option<crate::proto::VariantDeserializeError>),
 }
 
 impl std::fmt::Display for MethodCallError {

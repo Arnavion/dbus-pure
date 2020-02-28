@@ -13,6 +13,10 @@
 )]
 
 //! This is a pure Rust implementation of the D-Bus binary protocol.
+//!
+//! Use [`deserialize_message`] to parse a D-Bus message from raw bytes, and [`serialize_message`] to convert a D-Bus message to raw bytes.
+//!
+//! To actually connect to a bus and communicate with it, see the `dbus-pure` crate.
 
 mod as_variant;
 pub use as_variant::{
@@ -45,10 +49,12 @@ pub mod std2;
 mod variant;
 pub use variant::{
 	Variant,
-	VariantDeserializeSeed,
 };
 
 mod variant_deserializer;
+pub use variant_deserializer::{
+	VariantDeserializeError,
+};
 
 #[derive(Clone, Copy, Debug)]
 pub enum Endianness {
@@ -115,15 +121,19 @@ endianness_to_bytes! {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ObjectPath<'a>(pub std::borrow::Cow<'a, str>);
 
-impl serde::Serialize for ObjectPath<'_> {
-	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
-		self.0.serialize(serializer)
+impl<'de> ObjectPath<'de> {
+	fn deserialize(deserializer: &mut crate::de::Deserializer<'de>) -> Result<Self, crate::DeserializeError> {
+		Ok(ObjectPath(deserializer.deserialize_string()?.into()))
+	}
+
+	fn into_owned(self) -> ObjectPath<'static> {
+		ObjectPath(self.0.into_owned().into())
 	}
 }
 
-impl<'de, 'a> serde::Deserialize<'de> for ObjectPath<'a> {
-	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
-		Ok(ObjectPath(serde::de::Deserialize::deserialize(deserializer)?))
+impl ObjectPath<'_> {
+	fn serialize(&self, serializer: &mut crate::ser::Serializer<'_>) -> Result<(), crate::SerializeError> {
+		serializer.serialize_string(&self.0)
 	}
 }
 
@@ -344,58 +354,39 @@ impl std::str::FromStr for Signature {
 	}
 }
 
-impl<'de> serde::Deserialize<'de> for Signature {
-	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
-		struct Visitor;
+impl Signature {
+	fn deserialize(deserializer: &mut crate::de::Deserializer<'_>) -> Result<Self, crate::DeserializeError> {
+		let len = deserializer.deserialize_u8()?;
 
-		impl<'de> serde::de::Visitor<'de> for Visitor {
-			type Value = Signature;
-
-			fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-				formatter.write_str("signature")
-			}
-
-			fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error> where A: serde::de::SeqAccess<'de> {
-				let len: u8 = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("signature"))?;
-
-				let mut signature = String::with_capacity(len.into());
-				for _ in 0..len {
-					let b: u8 = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("signature"))?;
-					signature.push(b as char);
-				}
-
-				let nul: u8 = seq.next_element()?.ok_or_else(|| serde::de::Error::missing_field("signature"))?;
-				if nul != b'\0' {
-					return Err(serde::de::Error::invalid_value(serde::de::Unexpected::Unsigned(nul.into()), &"0x00"));
-				}
-
-				let signature =
-					signature.parse()
-					.map_err(|()| serde::de::Error::invalid_value(serde::de::Unexpected::Str(&signature), &self))?;
-				Ok(signature)
-			}
+		let mut signature = String::with_capacity(len.into());
+		for _ in 0..len {
+			let b = deserializer.deserialize_u8()?;
+			signature.push(b as char);
 		}
 
-		deserializer.deserialize_tuple(0, Visitor)
+		let nul = deserializer.deserialize_u8()?;
+		if nul != b'\0' {
+			return Err(crate::DeserializeError::InvalidValue { expected: "0x00".into(), actual: nul.to_string() });
+		}
+
+		let signature =
+			signature.parse()
+			.map_err(|()| crate::DeserializeError::InvalidValue { expected: "a signature".into(), actual: signature })?;
+		Ok(signature)
 	}
-}
 
-impl serde::Serialize for Signature {
-	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
-		use serde::ser::SerializeTuple;
-
+	fn serialize(&self, serializer: &mut crate::ser::Serializer<'_>) -> Result<(), crate::SerializeError> {
 		let signature_string = self.to_string();
 
-		let len: Result<u8, _> = std::convert::TryInto::try_into(signature_string.len());
-		let len = len.map_err(serde::ser::Error::custom)?;
+		let len: u8 = std::convert::TryInto::try_into(signature_string.len()).map_err(crate::SerializeError::ExceedsNumericLimits)?;
 
 		let data = std::iter::once(len).chain(signature_string.as_bytes().iter().copied()).chain(std::iter::once(b'\0'));
 
-		let mut serializer = serializer.serialize_tuple(0)?;
 		for b in data {
-			serializer.serialize_element(&b)?;
+			serializer.serialize_u8(b)?;
 		}
-		serializer.end()
+
+		Ok(())
 	}
 }
 
@@ -403,15 +394,13 @@ impl serde::Serialize for Signature {
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct UnixFd(pub u32);
 
-impl serde::Serialize for UnixFd {
-	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
-		self.0.serialize(serializer)
+impl UnixFd {
+	fn deserialize(deserializer: &mut crate::de::Deserializer<'_>) -> Result<Self, crate::DeserializeError> {
+		Ok(UnixFd(deserializer.deserialize_u32()?))
 	}
-}
 
-impl<'de> serde::Deserialize<'de> for UnixFd {
-	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: serde::Deserializer<'de> {
-		Ok(UnixFd(serde::de::Deserialize::deserialize(deserializer)?))
+	fn serialize(self, serializer: &mut crate::ser::Serializer<'_>) -> Result<(), crate::SerializeError> {
+		serializer.serialize_u32(self.0)
 	}
 }
 
@@ -424,26 +413,9 @@ pub trait Object {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct UsizeAsU32(pub(crate) usize);
 
-impl serde::Serialize for UsizeAsU32 {
-	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
-		let value: u32 = std::convert::TryInto::try_into(self.0).map_err(serde::ser::Error::custom)?;
-		value.serialize(serializer)
-	}
-}
-
-pub(crate) struct Slice<'a, T> {
-	pub(crate) inner: &'a [T],
-	pub(crate) alignment: usize,
-}
-
-impl<T> serde::Serialize for Slice<'_, T> where T: serde::Serialize {
-	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
-		use serde::ser::SerializeSeq;
-
-		let mut serializer = serializer.serialize_seq(Some(self.alignment))?;
-		for element in self.inner {
-			serializer.serialize_element(element)?;
-		}
-		serializer.end()
+impl UsizeAsU32 {
+	fn serialize(self, serializer: &mut crate::ser::Serializer<'_>) -> Result<(), crate::SerializeError> {
+		let value: u32 = std::convert::TryInto::try_into(self.0).map_err(crate::SerializeError::ExceedsNumericLimits)?;
+		serializer.serialize_u32(value)
 	}
 }
