@@ -90,11 +90,7 @@ impl<'ser> Serializer<'ser> {
 	}
 
 	pub(crate) fn serialize_string(&mut self, v: &str) -> Result<(), SerializeError> {
-		self.serialize_array(
-			1,
-			v.as_bytes(),
-			|v, serializer| serializer.serialize_u8(*v),
-		)?;
+		self.serialize_array_u8(v.as_bytes())?;
 		self.serialize_u8(b'\0')?;
 		Ok(())
 	}

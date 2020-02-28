@@ -161,18 +161,12 @@ impl<'de> Deserializer<'de> {
 	}
 
 	pub(crate) fn deserialize_string(&mut self) -> Result<&'de str, DeserializeError> {
-		let len = self.deserialize_u32()?;
-		let len: usize = std::convert::TryInto::try_into(len).map_err(DeserializeError::ExceedsNumericLimits)?;
+		let data = self.deserialize_array_u8()?;
 
-		if self.buf.len() < self.pos + len + 1 {
-			return Err(DeserializeError::EndOfInput);
-		}
-		if self.buf[self.pos + len] != b'\0' {
+		let nul = self.deserialize_u8()?;
+		if nul != b'\0' {
 			return Err(DeserializeError::StringMissingNulTerminator);
 		}
-
-		let data = &self.buf[self.pos..(self.pos + len)];
-		self.pos += len + 1;
 
 		let s = std::str::from_utf8(data).map_err(DeserializeError::InvalidUtf8)?;
 		Ok(s)
