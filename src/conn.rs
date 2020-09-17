@@ -45,7 +45,7 @@ impl Connection {
 
 		let stream = match bus_path {
 			BusPath::Session => {
-				let bus_address = std::env::var_os("DBUS_SESSION_BUS_ADDRESS").ok_or_else(|| ConnectError::MissingSessionBusEnvVar)?;
+				let bus_address = std::env::var_os("DBUS_SESSION_BUS_ADDRESS").ok_or(ConnectError::MissingSessionBusEnvVar)?;
 				connect(&bus_address)?
 			},
 
