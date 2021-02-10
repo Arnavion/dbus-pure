@@ -309,10 +309,9 @@ impl std::str::FromStr for Signature {
 							let _ = chars.next();
 							break;
 						}
-						else {
-							let field = from_inner(chars)?;
-							fields.push(field);
-						}
+
+						let field = from_inner(chars)?;
+						fields.push(field);
 					}
 
 					Ok(Signature::Struct { fields })
@@ -383,7 +382,7 @@ impl Signature {
 		let data = std::iter::once(len).chain(signature_string.as_bytes().iter().copied()).chain(std::iter::once(b'\0'));
 
 		for b in data {
-			serializer.serialize_u8(b)?;
+			serializer.serialize_u8(b);
 		}
 
 		Ok(())
@@ -399,8 +398,8 @@ impl UnixFd {
 		Ok(UnixFd(deserializer.deserialize_u32()?))
 	}
 
-	fn serialize(self, serializer: &mut crate::ser::Serializer<'_>) -> Result<(), crate::SerializeError> {
-		serializer.serialize_u32(self.0)
+	fn serialize(self, serializer: &mut crate::ser::Serializer<'_>) {
+		serializer.serialize_u32(self.0);
 	}
 }
 
@@ -416,6 +415,7 @@ pub(crate) struct UsizeAsU32(pub(crate) usize);
 impl UsizeAsU32 {
 	fn serialize(self, serializer: &mut crate::ser::Serializer<'_>) -> Result<(), crate::SerializeError> {
 		let value: u32 = std::convert::TryInto::try_into(self.0).map_err(crate::SerializeError::ExceedsNumericLimits)?;
-		serializer.serialize_u32(value)
+		serializer.serialize_u32(value);
+		Ok(())
 	}
 }

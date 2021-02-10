@@ -96,9 +96,10 @@ impl<T> From<Vec<T>> for CowSlice<'_, T> {
 	}
 }
 
-impl<'a, T> Into<std::borrow::Cow<'a, [T]>> for CowSlice<'a, T> where T: Clone {
-	fn into(self) -> std::borrow::Cow<'a, [T]> {
-		match self {
+// impl<'a, T> Into<std::borrow::Cow<'a, [T]>> for CowSlice<'a, T> where T: Clone {
+impl<'a, T> From<CowSlice<'a, T>> for std::borrow::Cow<'a, [T]> where T: Clone {
+	fn from(cs: CowSlice<'a, T>) -> Self {
+		match cs {
 			CowSlice::Borrowed(s) => std::borrow::Cow::Borrowed(s),
 			CowSlice::Owned(v) => std::borrow::Cow::Owned(v),
 		}

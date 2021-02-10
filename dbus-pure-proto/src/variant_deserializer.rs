@@ -211,21 +211,25 @@ impl serde::de::Error for VariantDeserializeError {
 
 #[cfg(test)]
 mod tests {
+	#![allow(
+		clippy::unreadable_literal,
+	)]
+
 	#[test]
 	fn test_variant_deserializer() {
 		fn test<T>(
 			variant: crate::Variant<'_>,
-			expected_deserialize: T,
+			expected_deserialize: &T,
 		) where T: std::fmt::Debug + PartialEq + serde::de::DeserializeOwned {
 			let actual_deserialize: T = serde::de::Deserialize::deserialize(variant).unwrap();
-			assert_eq!(expected_deserialize, actual_deserialize);
+			assert_eq!(*expected_deserialize, actual_deserialize);
 		}
 
 		test(
 			crate::Variant::Array {
 				element_signature: crate::Signature::DictEntry {
-					key: Box::new(crate::Signature::String).into(),
-					value: Box::new(crate::Signature::U32).into(),
+					key: Box::new(crate::Signature::String),
+					value: Box::new(crate::Signature::U32),
 				},
 				elements: vec![
 					crate::Variant::DictEntry {
@@ -238,10 +242,10 @@ mod tests {
 					},
 				].into()
 			},
-			vec![
-				("foo".to_owned(), 3),
-				("bar".to_owned(), 5),
-			].into_iter().collect::<std::collections::BTreeMap<_, _>>(),
+			&[
+				("foo", 3),
+				("bar", 5),
+			].iter().map(|&(k, v)| (k.to_owned(), v)).collect::<std::collections::BTreeMap<_, _>>(),
 		);
 
 		test(
@@ -274,7 +278,7 @@ mod tests {
 					baz: u32,
 				}
 
-				vec![
+				&[
 					Foo { bar: "abc".to_owned(), baz: 3 },
 					Foo { bar: "def".to_owned(), baz: 5 },
 				]
@@ -283,12 +287,12 @@ mod tests {
 
 		test(
 			crate::Variant::ArrayU32((&[0x01020304, 0x05060708][..]).into()),
-			vec![0x01020304_u32, 0x05060708],
+			&[0x01020304_u32, 0x05060708],
 		);
 
 		test(
 			crate::Variant::Bool(true),
-			true,
+			&true,
 		);
 
 		test(
@@ -296,22 +300,22 @@ mod tests {
 				key: (&crate::Variant::String("foo".into())).into(),
 				value: (&crate::Variant::U32(3)).into(),
 			},
-			("foo".to_owned(), 3),
+			&("foo".to_owned(), 3),
 		);
 
 		test(
 			crate::Variant::ObjectPath(crate::ObjectPath("/org/freedesktop/DBus".into())),
-			"/org/freedesktop/DBus".to_owned(),
+			&"/org/freedesktop/DBus".to_owned(),
 		);
 
 		test(
 			crate::Variant::Signature(crate::Signature::Array { element: Box::new(crate::Signature::U8) }),
-			"ay".to_owned(),
+			&"ay".to_owned(),
 		);
 
 		test(
 			crate::Variant::U32(0x01020304),
-			0x01020304_u32,
+			&0x01020304_u32,
 		);
 	}
 }

@@ -113,7 +113,7 @@ pub fn serialize_message(
 
 		let mut message_serializer = crate::ser::Serializer::new(buf, endianness);
 
-		EndiannessMarker(endianness).serialize(&mut message_serializer)?;
+		EndiannessMarker(endianness).serialize(&mut message_serializer);
 
 		header.serialize(&mut message_serializer)?;
 
@@ -124,7 +124,7 @@ pub fn serialize_message(
 	else {
 		let mut message_serializer = crate::ser::Serializer::new(buf, endianness);
 
-		EndiannessMarker(endianness).serialize(&mut message_serializer)?;
+		EndiannessMarker(endianness).serialize(&mut message_serializer);
 
 		header.serialize(&mut message_serializer)?;
 
@@ -176,15 +176,15 @@ impl<'de> MessageHeader<'de> {
 
 impl MessageHeader<'_> {
 	fn serialize(&self, serializer: &mut crate::ser::Serializer<'_>) -> Result<(), crate::SerializeError> {
-		self.r#type.serialize(serializer)?;
+		self.r#type.serialize(serializer);
 
-		self.flags.serialize(serializer)?;
+		self.flags.serialize(serializer);
 
-		serializer.serialize_u8(0x01_u8)?;
+		serializer.serialize_u8(0x01_u8);
 
 		crate::UsizeAsU32(self.body_len).serialize(serializer)?;
 
-		serializer.serialize_u32(self.serial)?;
+		serializer.serialize_u32(self.serial);
 
 		serializer.serialize_array(
 			1,
@@ -364,14 +364,14 @@ impl<'a> MessageType<'a> {
 }
 
 impl MessageType<'_> {
-	fn serialize(&self, serializer: &mut crate::ser::Serializer<'_>) -> Result<(), crate::SerializeError> {
+	fn serialize(&self, serializer: &mut crate::ser::Serializer<'_>) {
 		let r#type = match self {
 			MessageType::Error { .. } => 0x03,
 			MessageType::MethodCall { .. } => 0x01,
 			MessageType::MethodReturn { .. } => 0x02,
 			MessageType::Signal { .. } => 0x04,
 		};
-		serializer.serialize_u8(r#type)
+		serializer.serialize_u8(r#type);
 	}
 }
 
@@ -394,8 +394,8 @@ impl MessageFlags {
 		Ok(MessageFlags(deserializer.deserialize_u8()?))
 	}
 
-	fn serialize(self, serializer: &mut crate::ser::Serializer<'_>) -> Result<(), crate::SerializeError> {
-		serializer.serialize_u8(self.0)
+	fn serialize(self, serializer: &mut crate::ser::Serializer<'_>) {
+		serializer.serialize_u8(self.0);
 	}
 }
 
@@ -557,7 +557,7 @@ impl MessageHeaderField<'_> {
 		};
 
 		serializer.serialize_struct(|serializer| {
-			serializer.serialize_u8(code)?;
+			serializer.serialize_u8(code);
 
 			let signature = value.inner_signature();
 			signature.serialize(serializer)?;
@@ -583,11 +583,11 @@ impl EndiannessMarker {
 		Ok(EndiannessMarker(endianness))
 	}
 
-	fn serialize(self, serializer: &mut crate::ser::Serializer<'_>) -> Result<(), crate::SerializeError> {
+	fn serialize(self, serializer: &mut crate::ser::Serializer<'_>) {
 		let endianness_marker = match self.0 {
 			crate::Endianness::Big => b'B',
 			crate::Endianness::Little => b'l',
 		};
-		serializer.serialize_u8(endianness_marker)
+		serializer.serialize_u8(endianness_marker);
 	}
 }

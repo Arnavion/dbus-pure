@@ -28,7 +28,7 @@ impl<'ser> Serializer<'ser> {
 		v: &[T],
 		mut f: impl FnMut(&T, &mut Self) -> Result<(), SerializeError>,
 	) -> Result<(), SerializeError> {
-		self.serialize_u32(0)?;
+		self.serialize_u32(0);
 		let data_len_pos = self.buf.len() - 4;
 
 		self.pad_to(element_alignment);
@@ -53,45 +53,41 @@ impl<'ser> Serializer<'ser> {
 		v: &[u8],
 	) -> Result<(), SerializeError> {
 		let data_len: u32 = std::convert::TryInto::try_into(v.len()).map_err(crate::SerializeError::ExceedsNumericLimits)?;
-		self.serialize_u32(data_len)?;
+		self.serialize_u32(data_len);
 
 		self.buf.extend_from_slice(v);
 
 		Ok(())
 	}
 
-	pub(crate) fn serialize_bool(&mut self, v: bool) -> Result<(), SerializeError> {
+	pub(crate) fn serialize_bool(&mut self, v: bool) {
 		let v: u32 = if v { 1 } else { 0 };
-		self.serialize_u32(v)
+		self.serialize_u32(v);
 	}
 
-	pub(crate) fn serialize_f64(&mut self, v: f64) -> Result<(), SerializeError> {
+	pub(crate) fn serialize_f64(&mut self, v: f64) {
 		self.pad_to(8);
 		self.buf.extend_from_slice(&self.endianness.f64_to_bytes(v));
-		Ok(())
 	}
 
-	pub(crate) fn serialize_i16(&mut self, v: i16) -> Result<(), SerializeError> {
+	pub(crate) fn serialize_i16(&mut self, v: i16) {
 		self.pad_to(2);
 		self.buf.extend_from_slice(&self.endianness.i16_to_bytes(v));
-		Ok(())
 	}
 
-	pub(crate) fn serialize_i32(&mut self, v: i32) -> Result<(), SerializeError> {
+	pub(crate) fn serialize_i32(&mut self, v: i32) {
 		self.pad_to(4);
 		self.buf.extend_from_slice(&self.endianness.i32_to_bytes(v));
-		Ok(())
 	}
 
-	pub(crate) fn serialize_i64(&mut self, v: i64) -> Result<(), SerializeError> {
+	pub(crate) fn serialize_i64(&mut self, v: i64) {
 		self.pad_to(8);
 		self.buf.extend_from_slice(&self.endianness.i64_to_bytes(v));
-		Ok(())
 	}
 
 	pub(crate) fn serialize_string(&mut self, v: &str) -> Result<(), SerializeError> {
 		self.serialize_array_u8(v.as_bytes())?;
-		self.serialize_u8(b'\0')?;
+		self.serialize_u8(b'\0');
 		Ok(())
 	}
 
@@ -105,27 +101,23 @@ impl<'ser> Serializer<'ser> {
 		Ok(())
 	}
 
-	pub(crate) fn serialize_u8(&mut self, v: u8) -> Result<(), SerializeError> {
+	pub(crate) fn serialize_u8(&mut self, v: u8) {
 		self.buf.push(v);
-		Ok(())
 	}
 
-	pub(crate) fn serialize_u16(&mut self, v: u16) -> Result<(), SerializeError> {
+	pub(crate) fn serialize_u16(&mut self, v: u16) {
 		self.pad_to(2);
 		self.buf.extend_from_slice(&self.endianness.u16_to_bytes(v));
-		Ok(())
 	}
 
-	pub(crate) fn serialize_u32(&mut self, v: u32) -> Result<(), SerializeError> {
+	pub(crate) fn serialize_u32(&mut self, v: u32) {
 		self.pad_to(4);
 		self.buf.extend_from_slice(&self.endianness.u32_to_bytes(v));
-		Ok(())
 	}
 
-	pub(crate) fn serialize_u64(&mut self, v: u64) -> Result<(), SerializeError> {
+	pub(crate) fn serialize_u64(&mut self, v: u64) {
 		self.pad_to(8);
 		self.buf.extend_from_slice(&self.endianness.u64_to_bytes(v));
-		Ok(())
 	}
 }
 

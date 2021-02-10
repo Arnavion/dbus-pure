@@ -21,7 +21,7 @@ pub(super) fn run(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) 
 		let dbus_fn_name_attr =
 			attrs.iter()
 			.next()
-			.ok_or_else(|| r#"item is missing a `#[name = "..."]` attribute to set the D-Bus function name"#)
+			.ok_or(r#"item is missing a `#[name = "..."]` attribute to set the D-Bus function name"#)
 			.spanning(item)?;
 		let dbus_fn_name_meta = dbus_fn_name_attr.parse_meta()?;
 		let dbus_fn_name = match dbus_fn_name_meta {

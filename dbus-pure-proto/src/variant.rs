@@ -533,35 +533,35 @@ impl Variant<'_> {
 				serializer.serialize_array(
 					4,
 					elements,
-					|v, serializer| serializer.serialize_bool(*v),
+					|v, serializer| { serializer.serialize_bool(*v); Ok(()) },
 				),
 
 			Variant::ArrayF64(elements) =>
 				serializer.serialize_array(
 					8,
 					elements,
-					|v, serializer| serializer.serialize_f64(*v),
+					|v, serializer| { serializer.serialize_f64(*v); Ok(()) },
 				),
 
 			Variant::ArrayI16(elements) =>
 				serializer.serialize_array(
 					2,
 					elements,
-					|v, serializer| serializer.serialize_i16(*v),
+					|v, serializer| { serializer.serialize_i16(*v); Ok(()) },
 				),
 
 			Variant::ArrayI32(elements) =>
 				serializer.serialize_array(
 					4,
 					elements,
-					|v, serializer| serializer.serialize_i32(*v),
+					|v, serializer| { serializer.serialize_i32(*v); Ok(()) },
 				),
 
 			Variant::ArrayI64(elements) =>
 				serializer.serialize_array(
 					8,
 					elements,
-					|v, serializer| serializer.serialize_i64(*v),
+					|v, serializer| { serializer.serialize_i64(*v); Ok(()) },
 				),
 
 			Variant::ArrayString(elements) =>
@@ -578,32 +578,34 @@ impl Variant<'_> {
 				serializer.serialize_array(
 					2,
 					elements,
-					|v, serializer| serializer.serialize_u16(*v),
+					|v, serializer| { serializer.serialize_u16(*v); Ok(()) },
 				),
 
 			Variant::ArrayU32(elements) =>
 				serializer.serialize_array(
 					4,
 					elements,
-					|v, serializer| serializer.serialize_u32(*v),
+					|v, serializer| { serializer.serialize_u32(*v); Ok(()) },
 				),
 
 			Variant::ArrayU64(elements) =>
 				serializer.serialize_array(
 					8,
 					elements,
-					|v, serializer| serializer.serialize_u64(*v),
+					|v, serializer| { serializer.serialize_u64(*v); Ok(()) },
 				),
 
 			Variant::ArrayUnixFd(elements) =>
 				serializer.serialize_array(
 					4,
 					elements,
-					|v, serializer| v.serialize(serializer),
+					|v, serializer| { v.serialize(serializer); Ok(()) },
 				),
 
-			Variant::Bool(value) =>
-				serializer.serialize_bool(*value),
+			Variant::Bool(value) => {
+				serializer.serialize_bool(*value);
+				Ok(())
+			},
 
 			Variant::DictEntry { key, value } =>
 				serializer.serialize_struct(|serializer| {
@@ -612,17 +614,25 @@ impl Variant<'_> {
 					Ok(())
 				}),
 
-			Variant::F64(value) =>
-				serializer.serialize_f64(*value),
+			Variant::F64(value) => {
+				serializer.serialize_f64(*value);
+				Ok(())
+			},
 
-			Variant::I16(value) =>
-				serializer.serialize_i16(*value),
+			Variant::I16(value) => {
+				serializer.serialize_i16(*value);
+				Ok(())
+			},
 
-			Variant::I32(value) =>
-				serializer.serialize_i32(*value),
+			Variant::I32(value) => {
+				serializer.serialize_i32(*value);
+				Ok(())
+			},
 
-			Variant::I64(value) =>
-				serializer.serialize_i64(*value),
+			Variant::I64(value) => {
+				serializer.serialize_i64(*value);
+				Ok(())
+			},
 
 			Variant::ObjectPath(value) =>
 				value.serialize(serializer),
@@ -650,20 +660,30 @@ impl Variant<'_> {
 				Ok(())
 			},
 
-			Variant::U8(value) =>
-				serializer.serialize_u8(*value),
+			Variant::U8(value) => {
+				serializer.serialize_u8(*value);
+				Ok(())
+			},
 
-			Variant::U16(value) =>
-				serializer.serialize_u16(*value),
+			Variant::U16(value) => {
+				serializer.serialize_u16(*value);
+				Ok(())
+			},
 
-			Variant::U32(value) =>
-				serializer.serialize_u32(*value),
+			Variant::U32(value) => {
+				serializer.serialize_u32(*value);
+				Ok(())
+			},
 
-			Variant::U64(value) =>
-				serializer.serialize_u64(*value),
+			Variant::U64(value) => {
+				serializer.serialize_u64(*value);
+				Ok(())
+			},
 
-			Variant::UnixFd(value) =>
-				value.serialize(serializer),
+			Variant::UnixFd(value) => {
+				value.serialize(serializer);
+				Ok(())
+			},
 
 			Variant::Variant(value) => {
 				let signature = value.inner_signature();
@@ -677,18 +697,23 @@ impl Variant<'_> {
 
 #[cfg(test)]
 mod tests {
+	#![allow(
+		clippy::unreadable_literal,
+		clippy::unusual_byte_groupings,
+	)]
+
 	#[test]
 	fn test_variant_serde() {
 		fn test<'a>(
 			signature: &str,
 			expected_serialized: &'a [u8],
-			expected_variant: super::Variant<'a>,
+			expected_variant: &super::Variant<'a>,
 		) {
 			let signature: crate::Signature = signature.parse().unwrap();
 
 			let mut deserializer = crate::de::Deserializer::new(expected_serialized, 0, crate::Endianness::Little);
 			let actual_variant = super::Variant::deserialize(&mut deserializer, &signature).unwrap();
-			assert_eq!(expected_variant, actual_variant);
+			assert_eq!(*expected_variant, actual_variant);
 
 			assert_eq!(deserializer.pos(), expected_serialized.len());
 
@@ -706,7 +731,7 @@ mod tests {
 				\x08\x07\x06\x05\
 				\x04\x03\x02\x01\
 			",
-			super::Variant::ArrayU64((&[
+			&super::Variant::ArrayU64((&[
 				0x01020304_05060708_u64,
 			][..]).into()),
 		);
@@ -720,7 +745,7 @@ mod tests {
 				\x08\x07\x06\x05\
 				\x04\x03\x02\x01\
 			",
-			super::Variant::Tuple {
+			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
 					super::Variant::ArrayU64((&[
@@ -736,7 +761,7 @@ mod tests {
 				\x00\x00\x00\x00\
 				\x00\x00\x00\x00\
 			",
-			super::Variant::ArrayU64((&[][..]).into()),
+			&super::Variant::ArrayU64((&[][..]).into()),
 		);
 
 		test(
@@ -746,7 +771,7 @@ mod tests {
 				\x00\x00\x00\
 				\x00\x00\x00\x00\
 			",
-			super::Variant::Tuple {
+			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
 					super::Variant::ArrayU64((&[][..]).into()),
@@ -761,7 +786,7 @@ mod tests {
 				\x04\x03\x02\x01\
 				\x08\x07\x06\x05\
 			",
-			super::Variant::ArrayU32((&[
+			&super::Variant::ArrayU32((&[
 				0x01020304_u32,
 				0x05060708_u32,
 			][..]).into()),
@@ -776,7 +801,7 @@ mod tests {
 				\x04\x03\x02\x01\
 				\x08\x07\x06\x05\
 			",
-			super::Variant::Tuple {
+			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
 					super::Variant::ArrayU32((&[
@@ -794,7 +819,7 @@ mod tests {
 				\x01\x02\x03\x04\
 				\x05\x06\x07\x08\
 			",
-			super::Variant::ArrayU8((&[
+			&super::Variant::ArrayU8((&[
 				0x01, 0x02, 0x03, 0x04,
 				0x05, 0x06, 0x07, 0x08,
 			][..]).into()),
@@ -809,7 +834,7 @@ mod tests {
 				\x01\x02\x03\x04\
 				\x05\x06\x07\x08\
 			",
-			super::Variant::Tuple {
+			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
 					super::Variant::ArrayU8((&[
@@ -823,13 +848,13 @@ mod tests {
 		test(
 			"b",
 			b"\x00\x00\x00\x00",
-			super::Variant::Bool(false),
+			&super::Variant::Bool(false),
 		);
 
 		test(
 			"b",
 			b"\x01\x00\x00\x00",
-			super::Variant::Bool(true),
+			&super::Variant::Bool(true),
 		);
 
 		test(
@@ -839,7 +864,7 @@ mod tests {
 				\x00\x00\x00\
 				\x01\x00\x00\x00\
 			",
-			super::Variant::Tuple {
+			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
 					super::Variant::Bool(true),
@@ -860,7 +885,7 @@ mod tests {
 				\x00\x00\
 				\x14\x00\x00\x00org.freedesktop.DBus\0\
 			",
-			super::Variant::Array {
+			&super::Variant::Array {
 				element_signature: crate::Signature::DictEntry {
 					key: Box::new(crate::Signature::U16),
 					value: Box::new(crate::Signature::String),
@@ -892,7 +917,7 @@ mod tests {
 				\x00\x00\
 				\x14\x00\x00\x00org.freedesktop.DBus\0\
 			",
-			super::Variant::Tuple {
+			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
 					super::Variant::Array {
@@ -918,7 +943,7 @@ mod tests {
 		test(
 			"d",
 			b"\x58\x39\xB4\xC8\x76\xBE\xF3\x3F",
-			super::Variant::F64(1.234),
+			&super::Variant::F64(1.234),
 		);
 
 		test(
@@ -928,7 +953,7 @@ mod tests {
 				\x00\x00\x00\x00\x00\x00\x00\
 				\x58\x39\xB4\xC8\x76\xBE\xF3\x3F\
 			",
-			super::Variant::Tuple {
+			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
 					super::Variant::F64(1.234),
@@ -939,19 +964,19 @@ mod tests {
 		test(
 			"g",
 			b"\0\0",
-			crate::Variant::Signature(crate::Signature::Tuple { elements: vec![] }),
+			&super::Variant::Signature(crate::Signature::Tuple { elements: vec![] }),
 		);
 
 		test(
 			"g",
 			b"\x01s\0",
-			super::Variant::Signature(crate::Signature::String),
+			&super::Variant::Signature(crate::Signature::String),
 		);
 
 		test(
 			"g",
 			b"\x05(aus)\0",
-			super::Variant::Signature(crate::Signature::Struct {
+			&super::Variant::Signature(crate::Signature::Struct {
 				fields: (&[
 					crate::Signature::Array {
 						element: Box::new(crate::Signature::U32),
@@ -964,7 +989,7 @@ mod tests {
 		test(
 			"g",
 			b"\x05a{us}\0",
-			super::Variant::Signature(
+			&super::Variant::Signature(
 				crate::Signature::Array {
 					element: Box::new(crate::Signature::DictEntry {
 						key: Box::new(crate::Signature::U32),
@@ -980,7 +1005,7 @@ mod tests {
 				\x05\
 				\x01s\0\
 			",
-			super::Variant::Tuple {
+			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
 					super::Variant::Signature(crate::Signature::String),
@@ -991,7 +1016,7 @@ mod tests {
 		test(
 			"h",
 			b"\x04\x03\x02\x01",
-			super::Variant::UnixFd(crate::UnixFd(0x01020304)),
+			&super::Variant::UnixFd(crate::UnixFd(0x01020304)),
 		);
 
 		test(
@@ -1001,7 +1026,7 @@ mod tests {
 				\x00\x00\x00\
 				\x04\x03\x02\x01\
 			",
-			super::Variant::Tuple {
+			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
 					super::Variant::UnixFd(crate::UnixFd(0x01020304)),
@@ -1012,7 +1037,7 @@ mod tests {
 		test(
 			"i",
 			b"\x00\x00\x00\x01",
-			super::Variant::I32(0x01000000),
+			&super::Variant::I32(0x01000000),
 		);
 
 		test(
@@ -1022,7 +1047,7 @@ mod tests {
 				\x00\x00\x00\
 				\x04\x03\x02\x01\
 			",
-			super::Variant::Tuple {
+			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
 					super::Variant::I32(0x01020304),
@@ -1033,7 +1058,7 @@ mod tests {
 		test(
 			"n",
 			b"\x02\x01",
-			super::Variant::I16(0x0102),
+			&super::Variant::I16(0x0102),
 		);
 
 		test(
@@ -1043,7 +1068,7 @@ mod tests {
 				\x00\
 				\x02\x01\
 			",
-			super::Variant::Tuple {
+			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
 					super::Variant::I16(0x0102),
@@ -1054,7 +1079,7 @@ mod tests {
 		test(
 			"o",
 			b"\x15\x00\x00\x00/org/freedesktop/DBus\0",
-			super::Variant::ObjectPath(crate::ObjectPath("/org/freedesktop/DBus".into())),
+			&super::Variant::ObjectPath(crate::ObjectPath("/org/freedesktop/DBus".into())),
 		);
 
 		test(
@@ -1064,7 +1089,7 @@ mod tests {
 				\x00\x00\x00\
 				\x15\x00\x00\x00/org/freedesktop/DBus\0\
 			",
-			super::Variant::Tuple {
+			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
 					super::Variant::ObjectPath(crate::ObjectPath("/org/freedesktop/DBus".into())),
@@ -1075,7 +1100,7 @@ mod tests {
 		test(
 			"q",
 			b"\x02\x01",
-			super::Variant::U16(0x0102),
+			&super::Variant::U16(0x0102),
 		);
 
 		test(
@@ -1085,7 +1110,7 @@ mod tests {
 				\x00\
 				\x02\x01\
 			",
-			super::Variant::Tuple {
+			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
 					super::Variant::U16(0x0102),
@@ -1096,13 +1121,13 @@ mod tests {
 		test(
 			"s",
 			b"\x00\x00\x00\x00\0",
-			super::Variant::String("".into()),
+			&super::Variant::String("".into()),
 		);
 
 		test(
 			"s",
 			b"\x14\x00\x00\x00org.freedesktop.DBus\0",
-			super::Variant::String("org.freedesktop.DBus".into()),
+			&super::Variant::String("org.freedesktop.DBus".into()),
 		);
 
 		test(
@@ -1112,7 +1137,7 @@ mod tests {
 				\x00\x00\x00\
 				\x14\x00\x00\x00org.freedesktop.DBus\0\
 			",
-			super::Variant::Tuple {
+			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
 					super::Variant::String("org.freedesktop.DBus".into()),
@@ -1123,7 +1148,7 @@ mod tests {
 		test(
 			"t",
 			b"\x08\x07\x06\x05\x04\x03\x02\x01",
-			super::Variant::U64(0x01020304_05060708),
+			&super::Variant::U64(0x01020304_05060708),
 		);
 
 		test(
@@ -1133,7 +1158,7 @@ mod tests {
 				\x00\x00\x00\x00\x00\x00\x00\
 				\x08\x07\x06\x05\x04\x03\x02\x01\
 			",
-			super::Variant::Tuple {
+			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
 					super::Variant::U64(0x01020304_05060708),
@@ -1144,7 +1169,7 @@ mod tests {
 		test(
 			"u",
 			b"\x04\x03\x02\x01",
-			super::Variant::U32(0x01020304),
+			&super::Variant::U32(0x01020304),
 		);
 
 		test(
@@ -1154,7 +1179,7 @@ mod tests {
 				\x00\x00\x00\
 				\x04\x03\x02\x01\
 			",
-			super::Variant::Tuple {
+			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
 					super::Variant::U32(0x01020304),
@@ -1165,7 +1190,7 @@ mod tests {
 		test(
 			"v",
 			b"\x01s\0\x00\x14\x00\x00\x00org.freedesktop.DBus\0",
-			super::Variant::Variant((&
+			&super::Variant::Variant((&
 				super::Variant::String("org.freedesktop.DBus".into())
 			).into()),
 		);
@@ -1176,7 +1201,7 @@ mod tests {
 				\x01g\0\
 				\0\0\
 			",
-			super::Variant::Variant((&crate::Variant::Signature(crate::Signature::Tuple { elements: vec![] })).into()),
+			&super::Variant::Variant((&crate::Variant::Signature(crate::Signature::Tuple { elements: vec![] })).into()),
 		);
 
 		test(
@@ -1185,7 +1210,7 @@ mod tests {
 				\x05\
 				\x01s\0\x14\x00\x00\x00org.freedesktop.DBus\0\
 			",
-			super::Variant::Tuple {
+			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
 					super::Variant::Variant((&
@@ -1198,7 +1223,7 @@ mod tests {
 		test(
 			"x",
 			b"\x08\x07\x06\x05\x04\x03\x02\x01",
-			super::Variant::I64(0x01020304_05060708),
+			&super::Variant::I64(0x01020304_05060708),
 		);
 
 		test(
@@ -1208,7 +1233,7 @@ mod tests {
 				\x00\x00\x00\x00\x00\x00\x00\
 				\x08\x07\x06\x05\x04\x03\x02\x01\
 			",
-			super::Variant::Tuple {
+			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
 					super::Variant::I64(0x01020304_05060708),
@@ -1219,7 +1244,7 @@ mod tests {
 		test(
 			"y",
 			b"\x01",
-			super::Variant::U8(0x01),
+			&super::Variant::U8(0x01),
 		);
 
 		test(
@@ -1228,7 +1253,7 @@ mod tests {
 				\x05\
 				\x01\
 			",
-			super::Variant::Tuple {
+			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
 					super::Variant::U8(0x01),
@@ -1244,7 +1269,7 @@ mod tests {
 				\x00\x00\
 				\x14\x00\x00\x00org.freedesktop.DBus\0\
 			",
-			super::Variant::Struct {
+			&super::Variant::Struct {
 				fields: (&[
 					super::Variant::U32(0x01020304),
 					super::Variant::ObjectPath(crate::ObjectPath("/org/freedesktop/DBus".into())),
@@ -1267,7 +1292,7 @@ mod tests {
 					\x04\x03\x02\x01\
 				\x14\x00\x00\x00org.freedesktop.DBus\0\
 			",
-			super::Variant::Struct {
+			&super::Variant::Struct {
 				fields: (&[
 					super::Variant::U32(0x01020304),
 					super::Variant::U32(0x05060708),
@@ -1294,7 +1319,7 @@ mod tests {
 				\x00\x00\
 				\x14\x00\x00\x00org.freedesktop.DBus\0\
 			",
-			super::Variant::Tuple {
+			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
 					super::Variant::Struct {
@@ -1316,7 +1341,7 @@ mod tests {
 				\x00\x00\
 				\x14\x00\x00\x00org.freedesktop.DBus\0\
 			",
-			super::Variant::Tuple {
+			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U32(0x01020304),
 					super::Variant::ObjectPath(crate::ObjectPath("/org/freedesktop/DBus".into())),
@@ -1332,7 +1357,7 @@ mod tests {
 				\x00\x00\x00\x00\
 				\x03\
 			",
-			super::Variant::Tuple {
+			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::Array {
 						element_signature: crate::Signature::Struct {
@@ -1355,7 +1380,7 @@ mod tests {
 				\x00\x00\x00\x00\
 				\x03\
 			",
-			super::Variant::Tuple {
+			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(5),
 					super::Variant::Array {
