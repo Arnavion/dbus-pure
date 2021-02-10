@@ -43,7 +43,7 @@ impl<'ser> Serializer<'ser> {
 
 		let data_len: u32 = std::convert::TryInto::try_into(data_end_pos - data_start_pos).map_err(crate::SerializeError::ExceedsNumericLimits)?;
 
-		self.buf[data_len_pos..(data_len_pos + 4)].copy_from_slice(&self.endianness.u32_to_bytes(data_len));
+		self.buf[data_len_pos..][..4].copy_from_slice(&self.endianness.u32_to_bytes(data_len));
 
 		Ok(())
 	}

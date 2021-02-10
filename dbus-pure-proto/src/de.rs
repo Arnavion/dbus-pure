@@ -88,7 +88,7 @@ impl<'de> Deserializer<'de> {
 			return Err(DeserializeError::EndOfInput);
 		}
 
-		let value: &[_] = &self.buf[self.pos..(self.pos + 4)];
+		let value: &[_] = &self.buf[self.pos..][..4];
 		self.pos += 4;
 
 		let value: &[_; 4] = std::convert::TryInto::try_into(value).expect("infallible");
@@ -107,7 +107,7 @@ impl<'de> Deserializer<'de> {
 			return Err(DeserializeError::EndOfInput);
 		}
 
-		let value: &[_] = &self.buf[self.pos..(self.pos + 8)];
+		let value: &[_] = &self.buf[self.pos..][..8];
 		self.pos += 8;
 
 		let value: &[_; 8] = std::convert::TryInto::try_into(value).expect("infallible");
@@ -122,7 +122,7 @@ impl<'de> Deserializer<'de> {
 			return Err(DeserializeError::EndOfInput);
 		}
 
-		let value: &[_] = &self.buf[self.pos..(self.pos + 2)];
+		let value: &[_] = &self.buf[self.pos..][..2];
 		self.pos += 2;
 
 		let value: &[_; 2] = std::convert::TryInto::try_into(value).expect("infallible");
@@ -137,7 +137,7 @@ impl<'de> Deserializer<'de> {
 			return Err(DeserializeError::EndOfInput);
 		}
 
-		let value: &[_] = &self.buf[self.pos..(self.pos + 4)];
+		let value: &[_] = &self.buf[self.pos..][..4];
 		self.pos += 4;
 
 		let value: &[_; 4] = std::convert::TryInto::try_into(value).expect("infallible");
@@ -152,7 +152,7 @@ impl<'de> Deserializer<'de> {
 			return Err(DeserializeError::EndOfInput);
 		}
 
-		let value: &[_] = &self.buf[self.pos..(self.pos + 8)];
+		let value: &[_] = &self.buf[self.pos..][..8];
 		self.pos += 8;
 
 		let value: &[_; 8] = std::convert::TryInto::try_into(value).expect("infallible");
@@ -199,7 +199,7 @@ impl<'de> Deserializer<'de> {
 			return Err(DeserializeError::EndOfInput);
 		}
 
-		let value: &[_] = &self.buf[self.pos..(self.pos + 2)];
+		let value: &[_] = &self.buf[self.pos..][..2];
 		self.pos += 2;
 
 		let value: &[_; 2] = std::convert::TryInto::try_into(value).expect("infallible");
@@ -214,7 +214,7 @@ impl<'de> Deserializer<'de> {
 			return Err(DeserializeError::EndOfInput);
 		}
 
-		let value: &[_] = &self.buf[self.pos..(self.pos + 4)];
+		let value: &[_] = &self.buf[self.pos..][..4];
 		self.pos += 4;
 
 		let value: &[_; 4] = std::convert::TryInto::try_into(value).expect("infallible");
@@ -229,7 +229,7 @@ impl<'de> Deserializer<'de> {
 			return Err(DeserializeError::EndOfInput);
 		}
 
-		let value: &[_] = &self.buf[self.pos..(self.pos + 8)];
+		let value: &[_] = &self.buf[self.pos..][..8];
 		self.pos += 8;
 
 		let value: &[_; 8] = std::convert::TryInto::try_into(value).expect("infallible");

@@ -94,7 +94,7 @@ impl Connection {
 
 		let server_guid =
 			if read_buf.starts_with(b"OK ") {
-				&read_buf[b"OK ".len()..(b"OK ".len() + 32)]
+				&read_buf[b"OK ".len()..][..32]
 			}
 			else {
 				return Err(ConnectError::Authenticate(std::io::Error::new(std::io::ErrorKind::Other, "malformed response")));
