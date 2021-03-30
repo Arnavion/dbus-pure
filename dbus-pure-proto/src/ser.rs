@@ -9,9 +9,9 @@ impl<'ser> Serializer<'ser> {
 	pub(crate) fn new(buf: &'ser mut Vec<u8>, endianness: crate::Endianness) -> Self {
 		let start = buf.len();
 		Serializer {
-			endianness,
 			buf,
 			start,
+			endianness,
 		}
 	}
 

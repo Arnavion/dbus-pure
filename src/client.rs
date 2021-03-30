@@ -131,6 +131,7 @@ impl Client {
 	///
 	/// Messages that do not match the predicate will not be discarded. Instead they will be returned
 	/// from subsequent calls to [`Client::recv`] or `recv_matching`.
+	#[allow(clippy::missing_panics_doc)] // `self.received_messages.remove(i).unwrap()` cannot fail
 	pub fn recv_matching(
 		&mut self,
 		mut predicate: impl FnMut(&crate::proto::MessageHeader<'static>, Option<&crate::proto::Variant<'static>>) -> bool,
