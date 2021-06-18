@@ -52,7 +52,7 @@ impl<'de> Deserializer<'de> {
 		let data_end_pos = self.pos + data_len;
 
 		let mut inner = Deserializer {
-			buf: &self.buf.get(..data_end_pos).ok_or(DeserializeError::EndOfInput)?,
+			buf: self.buf.get(..data_end_pos).ok_or(DeserializeError::EndOfInput)?,
 			pos: self.pos,
 			endianness: self.endianness,
 		};

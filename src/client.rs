@@ -164,7 +164,7 @@ impl std::fmt::Debug for Client {
 			.field("connection", &())
 			.field("last_serial", &self.last_serial)
 			.field("name", &self.name)
-			.finish()
+			.finish_non_exhaustive()
 	}
 }
 
