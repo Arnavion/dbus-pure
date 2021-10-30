@@ -37,9 +37,9 @@ impl<T, E> ResultExt<T> for Result<T, E> where E: std::fmt::Display {
 ///
 /// # Example
 ///
-/// ```rust,ignore
-/// #[derive(Debug, dbus_pure_macros::AsVariant, serde_derive::Deserialize)]
-/// struct Response {
+/// ```rust
+/// #[derive(Debug, dbus_pure_macros::AsVariant, serde::Deserialize)]
+/// struct Response<'a> {
 ///     foo: u32,
 ///     bar: std::borrow::Cow<'a, str>,
 /// }
@@ -51,7 +51,7 @@ pub fn as_variant(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
 /// Takes a trait representing a D-Bus interface as input, and emits a trait that can be used to invoke methods using D-Bus.
 ///
-/// ```rust,ignore
+/// ```rust
 /// #[dbus_pure_macros::interface("org.freedesktop.DBus")]
 /// trait OrgFreeDesktopDbusInterface {
 ///     #[name = "AddMatch"]
@@ -95,7 +95,16 @@ pub fn interface(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -
 
 /// Takes a struct representing a D-Bus object, and implements the given D-Bus interfaces on it.
 ///
-/// ```rust,ignore
+/// ```rust
+/// # #[dbus_pure_macros::interface("org.freedesktop.DBus")]
+/// # trait OrgFreeDesktopDbusInterface {
+/// #     #[name = "AddMatch"]
+/// #     fn add_match(rule: &str);
+///
+/// #     #[name = "ListNames"]
+/// #     fn list_names() -> Vec<String>;
+/// # }
+///
 /// #[dbus_pure_macros::object(OrgFreeDesktopDbusInterface)]
 /// struct OrgFreeDesktopDbusObject;
 /// ```

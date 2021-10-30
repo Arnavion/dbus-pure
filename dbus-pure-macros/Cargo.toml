@@ -9,5 +9,10 @@ proc-macro2 = "1"
 quote = "1"
 syn = { version = "1", features = ["full"] }
 
+[dev-dependencies]
+dbus-pure = { path = "../" }
+dbus-pure-proto = { path = "../dbus-pure-proto/" }
+serde = { version = "1", features = ["derive"] }
+
 [lib]
 proc-macro = true
