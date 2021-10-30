@@ -146,7 +146,7 @@ impl<'de> MessageHeader<'de> {
 		}
 
 		let body_len = deserializer.deserialize_u32()?;
-		let body_len: usize = std::convert::TryInto::try_into(body_len).map_err(crate::DeserializeError::ExceedsNumericLimits)?;
+		let body_len: usize = body_len.try_into().map_err(crate::DeserializeError::ExceedsNumericLimits)?;
 
 		let serial = deserializer.deserialize_u32()?;
 

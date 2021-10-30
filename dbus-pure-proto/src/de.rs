@@ -45,7 +45,7 @@ impl<'de> Deserializer<'de> {
 		mut f: impl FnMut(&mut Deserializer<'de>) -> Result<T, DeserializeError>,
 	) -> Result<Vec<T>, DeserializeError> {
 		let data_len = self.deserialize_u32()?;
-		let data_len: usize = std::convert::TryInto::try_into(data_len).map_err(crate::DeserializeError::ExceedsNumericLimits)?;
+		let data_len: usize = data_len.try_into().map_err(crate::DeserializeError::ExceedsNumericLimits)?;
 
 		self.pad_to(element_alignment)?;
 
@@ -70,7 +70,7 @@ impl<'de> Deserializer<'de> {
 
 	pub(crate) fn deserialize_array_u8(&mut self) -> Result<&'de [u8], DeserializeError> {
 		let data_len = self.deserialize_u32()?;
-		let data_len: usize = std::convert::TryInto::try_into(data_len).map_err(crate::DeserializeError::ExceedsNumericLimits)?;
+		let data_len: usize = data_len.try_into().map_err(crate::DeserializeError::ExceedsNumericLimits)?;
 
 		let data_end_pos = self.pos + data_len;
 
@@ -91,7 +91,7 @@ impl<'de> Deserializer<'de> {
 		let value: &[_] = &self.buf[self.pos..][..4];
 		self.pos += 4;
 
-		let value: &[_; 4] = std::convert::TryInto::try_into(value).expect("infallible");
+		let value: &[_; 4] = value.try_into().expect("infallible");
 		let value = self.endianness.u32_from_bytes(*value);
 		match value {
 			0 => Ok(false),
@@ -110,7 +110,7 @@ impl<'de> Deserializer<'de> {
 		let value: &[_] = &self.buf[self.pos..][..8];
 		self.pos += 8;
 
-		let value: &[_; 8] = std::convert::TryInto::try_into(value).expect("infallible");
+		let value: &[_; 8] = value.try_into().expect("infallible");
 		let value = self.endianness.f64_from_bytes(*value);
 		Ok(value)
 	}
@@ -125,7 +125,7 @@ impl<'de> Deserializer<'de> {
 		let value: &[_] = &self.buf[self.pos..][..2];
 		self.pos += 2;
 
-		let value: &[_; 2] = std::convert::TryInto::try_into(value).expect("infallible");
+		let value: &[_; 2] = value.try_into().expect("infallible");
 		let value = self.endianness.i16_from_bytes(*value);
 		Ok(value)
 	}
@@ -140,7 +140,7 @@ impl<'de> Deserializer<'de> {
 		let value: &[_] = &self.buf[self.pos..][..4];
 		self.pos += 4;
 
-		let value: &[_; 4] = std::convert::TryInto::try_into(value).expect("infallible");
+		let value: &[_; 4] = value.try_into().expect("infallible");
 		let value = self.endianness.i32_from_bytes(*value);
 		Ok(value)
 	}
@@ -155,7 +155,7 @@ impl<'de> Deserializer<'de> {
 		let value: &[_] = &self.buf[self.pos..][..8];
 		self.pos += 8;
 
-		let value: &[_; 8] = std::convert::TryInto::try_into(value).expect("infallible");
+		let value: &[_; 8] = value.try_into().expect("infallible");
 		let value = self.endianness.i64_from_bytes(*value);
 		Ok(value)
 	}
@@ -202,7 +202,7 @@ impl<'de> Deserializer<'de> {
 		let value: &[_] = &self.buf[self.pos..][..2];
 		self.pos += 2;
 
-		let value: &[_; 2] = std::convert::TryInto::try_into(value).expect("infallible");
+		let value: &[_; 2] = value.try_into().expect("infallible");
 		let value = self.endianness.u16_from_bytes(*value);
 		Ok(value)
 	}
@@ -217,7 +217,7 @@ impl<'de> Deserializer<'de> {
 		let value: &[_] = &self.buf[self.pos..][..4];
 		self.pos += 4;
 
-		let value: &[_; 4] = std::convert::TryInto::try_into(value).expect("infallible");
+		let value: &[_; 4] = value.try_into().expect("infallible");
 		let value = self.endianness.u32_from_bytes(*value);
 		Ok(value)
 	}
@@ -232,7 +232,7 @@ impl<'de> Deserializer<'de> {
 		let value: &[_] = &self.buf[self.pos..][..8];
 		self.pos += 8;
 
-		let value: &[_; 8] = std::convert::TryInto::try_into(value).expect("infallible");
+		let value: &[_; 8] = value.try_into().expect("infallible");
 		let value = self.endianness.u64_from_bytes(*value);
 		Ok(value)
 	}

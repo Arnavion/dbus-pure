@@ -377,7 +377,7 @@ impl Signature {
 	fn serialize(&self, serializer: &mut crate::ser::Serializer<'_>) -> Result<(), crate::SerializeError> {
 		let signature_string = self.to_string();
 
-		let len: u8 = std::convert::TryInto::try_into(signature_string.len()).map_err(crate::SerializeError::ExceedsNumericLimits)?;
+		let len: u8 = signature_string.len().try_into().map_err(crate::SerializeError::ExceedsNumericLimits)?;
 
 		let data = std::iter::once(len).chain(signature_string.as_bytes().iter().copied()).chain(std::iter::once(b'\0'));
 
@@ -414,7 +414,7 @@ pub(crate) struct UsizeAsU32(pub(crate) usize);
 
 impl UsizeAsU32 {
 	fn serialize(self, serializer: &mut crate::ser::Serializer<'_>) -> Result<(), crate::SerializeError> {
-		let value: u32 = std::convert::TryInto::try_into(self.0).map_err(crate::SerializeError::ExceedsNumericLimits)?;
+		let value: u32 = self.0.try_into().map_err(crate::SerializeError::ExceedsNumericLimits)?;
 		serializer.serialize_u32(value);
 		Ok(())
 	}
