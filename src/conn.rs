@@ -84,7 +84,7 @@ impl Connection {
 		let write_buf = vec![];
 
 		#[allow(clippy::write_with_newline)]
-		write!(writer, "\0AUTH EXTERNAL {}\r\n", sasl_auth_id).map_err(ConnectError::Authenticate)?;
+		write!(writer, "\0AUTH EXTERNAL {sasl_auth_id}\r\n").map_err(ConnectError::Authenticate)?;
 		writer.flush().map_err(ConnectError::Authenticate)?;
 
 		let _ = reader.read_until(b'\n', &mut read_buf).map_err(ConnectError::Authenticate)?;
@@ -210,7 +210,7 @@ impl std::fmt::Display for ConnectError {
 						f.write_str(", ")?;
 					}
 
-					write!(f, "{:?}: {:?}", bus_path, err.to_string())?;
+					write!(f, "{bus_path:?}: {:?}", err.to_string())?;
 				}
 				f.write_str("]")?;
 				Ok(())
@@ -218,7 +218,7 @@ impl std::fmt::Display for ConnectError {
 
 			ConnectError::MissingSessionBusEnvVar => f.write_str("the DBUS_SESSION_BUS_ADDRESS env var is not set"),
 
-			ConnectError::UnsupportedTransport(value) => write!(f, "the bus path {:?} has an unsupported transport", value),
+			ConnectError::UnsupportedTransport(value) => write!(f, "the bus path {value:?} has an unsupported transport"),
 		}
 	}
 }

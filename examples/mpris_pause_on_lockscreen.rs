@@ -28,7 +28,7 @@ fn main() -> Result<(), Error> {
 			connection.set_write_endianness(dbus_pure::proto::Endianness::Little);
 		}
 		else {
-			return Err(format!(r#"invalid value of FORCE_WRITE_ENDIANNESS env var {:?}, expected "big" or "little""#, s).into());
+			return Err(format!(r#"invalid value of FORCE_WRITE_ENDIANNESS env var {s:?}, expected "big" or "little""#).into());
 		}
 	}
 
@@ -106,12 +106,12 @@ fn main() -> Result<(), Error> {
 				};
 
 				if playback_status == "Playing" {
-					println!("Pausing {} ...", media_player_name);
+					println!("Pausing {media_player_name} ...");
 
 					// Pause the player by invoking its `org.mpris.MediaPlayer2.Player.Pause` method.
 					let () = obj.pause(&mut client)?;
 
-					println!("{} is paused", media_player_name);
+					println!("{media_player_name} is paused");
 
 					players_to_resume.insert(media_player_name);
 				}
@@ -124,13 +124,13 @@ fn main() -> Result<(), Error> {
 					path: dbus_pure::proto::ObjectPath("/org/mpris/MediaPlayer2".into()),
 				};
 
-				println!("Unpausing {} ...", media_player_name);
+				println!("Unpausing {media_player_name} ...");
 
 				// Unpause the player by invoking its `org.mpris.MediaPlayer2.Player.Play` method.
 				// Swallow any errors in case the player refuses to play or no longer exists.
 				let result = obj.play(&mut client);
 				if result.is_ok() {
-					println!("{} is unpaused", media_player_name);
+					println!("{media_player_name} is unpaused");
 				}
 			}
 		}
@@ -151,7 +151,7 @@ impl std::fmt::Debug for Error {
 
 		let mut source = self.0.source();
 		while let Some(err) = source {
-			writeln!(f, "caused by: {}", err)?;
+			writeln!(f, "caused by: {err}")?;
 			source = err.source();
 		}
 

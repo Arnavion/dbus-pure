@@ -202,11 +202,11 @@ pub enum MethodCallError {
 impl std::fmt::Display for MethodCallError {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
-			MethodCallError::Error(error_name, body) => write!(f, "method call failed with an error: {} {:?}", error_name, body),
+			MethodCallError::Error(error_name, body) => write!(f, "method call failed with an error: {error_name} {body:?}"),
 			MethodCallError::RecvResponse(_) => f.write_str("could not receive response"),
 			MethodCallError::SendRequest(_) => f.write_str("could not send request"),
-			MethodCallError::UnexpectedResponse(Some(_)) => write!(f, "could not deserialize response body"),
-			MethodCallError::UnexpectedResponse(None) => write!(f, "could not deserialize response body: response has empty body"),
+			MethodCallError::UnexpectedResponse(Some(_)) => f.write_str("could not deserialize response body"),
+			MethodCallError::UnexpectedResponse(None) => f.write_str("could not deserialize response body: response has empty body"),
 		}
 	}
 }

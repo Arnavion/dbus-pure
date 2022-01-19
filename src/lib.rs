@@ -52,7 +52,7 @@
 //! };
 //!
 //! for name in names {
-//!     println!("{}", name);
+//!     println!("{name}");
 //! }
 //! #
 //! # Ok(())
@@ -88,7 +88,7 @@
 //! };
 //!
 //! for name in names {
-//!     println!("{}", name);
+//!     println!("{name}");
 //! }
 //! #
 //! # Ok(())

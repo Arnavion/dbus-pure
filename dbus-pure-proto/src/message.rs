@@ -446,47 +446,47 @@ impl<'de> MessageHeaderField<'de> {
 				(0x01, crate::Variant::ObjectPath(object_path)) =>
 					Ok(MessageHeaderField::Path(object_path)),
 				(0x01, value) =>
-					Err(crate::DeserializeError::InvalidValue { expected: "an object path".into(), actual: format!("{:?}", value) }),
+					Err(crate::DeserializeError::InvalidValue { expected: "an object path".into(), actual: format!("{value:?}") }),
 
 				(0x02, crate::Variant::String(name)) =>
 					Ok(MessageHeaderField::Interface(name)),
 				(0x02, value) =>
-					Err(crate::DeserializeError::InvalidValue { expected: "a string".into(), actual: format!("{:?}", value) }),
+					Err(crate::DeserializeError::InvalidValue { expected: "a string".into(), actual: format!("{value:?}") }),
 
 				(0x03, crate::Variant::String(name)) =>
 					Ok(MessageHeaderField::Member(name)),
 				(0x03, value) =>
-					Err(crate::DeserializeError::InvalidValue { expected: "a string".into(), actual: format!("{:?}", value) }),
+					Err(crate::DeserializeError::InvalidValue { expected: "a string".into(), actual: format!("{value:?}") }),
 
 				(0x04, crate::Variant::String(name)) =>
 					Ok(MessageHeaderField::ErrorName(name)),
 				(0x04, value) =>
-					Err(crate::DeserializeError::InvalidValue { expected: "a string".into(), actual: format!("{:?}", value) }),
+					Err(crate::DeserializeError::InvalidValue { expected: "a string".into(), actual: format!("{value:?}") }),
 
 				(0x05, crate::Variant::U32(serial)) =>
 					Ok(MessageHeaderField::ReplySerial(serial)),
 				(0x05, value) =>
-					Err(crate::DeserializeError::InvalidValue { expected: "a string".into(), actual: format!("{:?}", value) }),
+					Err(crate::DeserializeError::InvalidValue { expected: "a string".into(), actual: format!("{value:?}") }),
 
 				(0x06, crate::Variant::String(name)) =>
 					Ok(MessageHeaderField::Destination(name)),
 				(0x06, value) =>
-					Err(crate::DeserializeError::InvalidValue { expected: "a string".into(), actual: format!("{:?}", value) }),
+					Err(crate::DeserializeError::InvalidValue { expected: "a string".into(), actual: format!("{value:?}") }),
 
 				(0x07, crate::Variant::String(name)) =>
 					Ok(MessageHeaderField::Sender(name)),
 				(0x07, value) =>
-					Err(crate::DeserializeError::InvalidValue { expected: "a string".into(), actual: format!("{:?}", value) }),
+					Err(crate::DeserializeError::InvalidValue { expected: "a string".into(), actual: format!("{value:?}") }),
 
 				(0x08, crate::Variant::Signature(signature)) =>
 					Ok(MessageHeaderField::Signature(signature)),
 				(0x08, value) =>
-					Err(crate::DeserializeError::InvalidValue { expected: "a signature".into(), actual: format!("{:?}", value) }),
+					Err(crate::DeserializeError::InvalidValue { expected: "a signature".into(), actual: format!("{value:?}") }),
 
 				(0x09, crate::Variant::U32(num_unix_fds)) =>
 					Ok(MessageHeaderField::UnixFds(num_unix_fds)),
 				(0x09, value) =>
-					Err(crate::DeserializeError::InvalidValue { expected: "a u32".into(), actual: format!("{:?}", value) }),
+					Err(crate::DeserializeError::InvalidValue { expected: "a u32".into(), actual: format!("{value:?}") }),
 
 				(code, value) =>
 					Ok(MessageHeaderField::Unknown { code, value }),

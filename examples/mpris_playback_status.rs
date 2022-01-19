@@ -22,7 +22,7 @@ fn main() -> Result<(), Error> {
 			connection.set_write_endianness(dbus_pure::proto::Endianness::Little);
 		}
 		else {
-			return Err(format!(r#"invalid value of FORCE_WRITE_ENDIANNESS env var {:?}, expected "big" or "little""#, s).into());
+			return Err(format!(r#"invalid value of FORCE_WRITE_ENDIANNESS env var {s:?}, expected "big" or "little""#).into());
 		}
 	}
 
@@ -43,7 +43,7 @@ fn main() -> Result<(), Error> {
 	let media_player_names = names.iter().filter(|object_name| object_name.starts_with("org.mpris.MediaPlayer2."));
 
 	for media_player_name in media_player_names {
-		println!("Found media player {}", media_player_name);
+		println!("Found media player {media_player_name}");
 
 		// Get the playback status of the media player by gettings its `PlaybackStatus` property.
 		//
@@ -62,7 +62,7 @@ fn main() -> Result<(), Error> {
 			playback_status
 		};
 
-		println!("{} is {}", media_player_name, playback_status);
+		println!("{media_player_name} is {playback_status}");
 	}
 
 	Ok(())
@@ -82,7 +82,7 @@ impl std::fmt::Debug for Error {
 
 		let mut source = self.0.source();
 		while let Some(err) = source {
-			writeln!(f, "caused by: {}", err)?;
+			writeln!(f, "caused by: {err}")?;
 			source = err.source();
 		}
 

@@ -257,10 +257,10 @@ impl std::fmt::Display for DeserializeError {
 			DeserializeError::EndOfInput => f.write_str("end of input"),
 			DeserializeError::ExceedsNumericLimits(_) => f.write_str("value exceeds numeric limits"),
 			DeserializeError::InvalidUtf8(_) => f.write_str("deserialized string is not valid UTF-8"),
-			DeserializeError::InvalidValue { expected, actual } => write!(f, "expected {} but got {}", expected, actual),
+			DeserializeError::InvalidValue { expected, actual } => write!(f, "expected {expected} but got {actual}"),
 			DeserializeError::MissingRequiredMessageHeaderField { method_name, header_field_name } =>
-				write!(f, "{} message is missing {} required header field", method_name, header_field_name),
-			DeserializeError::NonZeroPadding { start, end } => write!(f, "padding contains a byte other than 0x00 between positions {} and {}", start, end),
+				write!(f, "{method_name} message is missing {header_field_name} required header field"),
+			DeserializeError::NonZeroPadding { start, end } => write!(f, "padding contains a byte other than 0x00 between positions {start} and {end}"),
 			DeserializeError::StringMissingNulTerminator => f.write_str("deserialized string is not nul-terminated"),
 		}
 	}

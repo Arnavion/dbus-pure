@@ -17,7 +17,7 @@ impl<'de, 'a> serde::Deserializer<'de> for crate::Variant<'de> {
 							}
 							else {
 								Err(VariantDeserializeError::InvalidValue {
-									expected: format!("array element with signature {}", element_signature).into(),
+									expected: format!("array element with signature {element_signature}").into(),
 									actual: format!("array element with signature {}", element.inner_signature()),
 								})
 							});
@@ -188,7 +188,7 @@ impl std::fmt::Display for VariantDeserializeError {
 		#[allow(clippy::match_same_arms)]
 		match self {
 			VariantDeserializeError::Custom(message) => f.write_str(message),
-			VariantDeserializeError::InvalidValue { expected, actual } => write!(f, "expected {} but got {}", expected, actual),
+			VariantDeserializeError::InvalidValue { expected, actual } => write!(f, "expected {expected} but got {actual}"),
 		}
 	}
 }

@@ -192,15 +192,15 @@ impl std::fmt::Display for Signature {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
 			Signature::Array { element } =>
-				write!(f, "a{}", element)?,
+				write!(f, "a{element}")?,
 
 			Signature::Bool =>
 				f.write_str("b")?,
 
 			Signature::DictEntry { key, value } => {
 				f.write_str("{")?;
-				write!(f, "{}", key)?;
-				write!(f, "{}", value)?;
+				write!(f, "{key}")?;
+				write!(f, "{value}")?;
 				f.write_str("}")?;
 			},
 
@@ -228,14 +228,14 @@ impl std::fmt::Display for Signature {
 			Signature::Struct { fields } => {
 				f.write_str("(")?;
 				for field in fields {
-					write!(f, "{}", field)?;
+					write!(f, "{field}")?;
 				}
 				f.write_str(")")?;
 			},
 
 			Signature::Tuple { elements } =>
 				for element in elements {
-					write!(f, "{}", element)?;
+					write!(f, "{element}")?;
 				},
 
 			Signature::U8 =>
