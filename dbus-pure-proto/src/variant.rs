@@ -410,7 +410,7 @@ impl<'de> Variant<'de> {
 		match self {
 			Variant::Array { element_signature, elements } => Variant::Array {
 				element_signature,
-				elements: elements.into_owned().into_iter().map(Self::into_owned).collect::<Vec<_>>().into(),
+				elements: elements.iter().cloned().map(Self::into_owned).collect::<Vec<_>>().into(),
 			},
 
 			Variant::ArrayBool(elements) =>
@@ -429,8 +429,9 @@ impl<'de> Variant<'de> {
 				Variant::ArrayI64(elements.into_owned().into()),
 
 			Variant::ArrayString(elements) => Variant::ArrayString(
-				elements.into_owned()
-				.into_iter()
+				elements
+				.iter()
+				.cloned()
 				.map(|element| element.into_owned().into())
 				.collect::<Vec<_>>()
 				.into(),
@@ -482,8 +483,9 @@ impl<'de> Variant<'de> {
 
 			Variant::Struct { fields } => Variant::Struct {
 				fields:
-					fields.into_owned()
-					.into_iter()
+					fields
+					.iter()
+					.cloned()
 					.map(Self::into_owned)
 					.collect::<Vec<_>>()
 					.into(),
@@ -491,8 +493,9 @@ impl<'de> Variant<'de> {
 
 			Variant::Tuple { elements } => Variant::Tuple {
 				elements:
-					elements.into_owned()
-					.into_iter()
+					elements
+					.iter()
+					.cloned()
 					.map(Self::into_owned)
 					.collect::<Vec<_>>()
 					.into(),

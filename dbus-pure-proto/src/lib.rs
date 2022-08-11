@@ -118,7 +118,7 @@ endianness_to_bytes! {
 }
 
 /// An object path.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ObjectPath<'a>(pub std::borrow::Cow<'a, str>);
 
 impl<'de> ObjectPath<'de> {
@@ -140,7 +140,7 @@ impl ObjectPath<'_> {
 /// A signature.
 ///
 /// Use `.to_string()` to get the string representation of the signature.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Signature {
 	Array { element: Box<Signature> },
 	Bool,
@@ -390,7 +390,7 @@ impl Signature {
 }
 
 /// An index into an array of file descriptors.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct UnixFd(pub u32);
 
 impl UnixFd {

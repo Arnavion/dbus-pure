@@ -94,7 +94,6 @@ pub fn serialize_message(
 			let mut body_serialized = vec![];
 			let mut body_serializer = crate::ser::Serializer::new(&mut body_serialized, endianness);
 			body.serialize(&mut body_serializer)?;
-			drop(body_serializer);
 
 			let body_len = body_serialized.len();
 
@@ -169,7 +168,7 @@ impl<'de> MessageHeader<'de> {
 			flags: self.flags,
 			body_len: self.body_len,
 			serial: self.serial,
-			fields: self.fields.into_owned().into_iter().map(MessageHeaderField::into_owned).collect::<Vec<_>>().into(),
+			fields: self.fields.iter().cloned().map(MessageHeaderField::into_owned).collect::<Vec<_>>().into(),
 		}
 	}
 }

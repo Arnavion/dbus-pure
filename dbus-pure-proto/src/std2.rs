@@ -48,6 +48,8 @@ impl<T> PartialEq<Self> for CowRef<'_, T> where T: PartialEq<T> {
 	}
 }
 
+impl<T> Eq for CowRef<'_, T> where T: Eq {}
+
 /// Either a borrowed `&'a [T]` or an owned `Vec<T>`
 ///
 /// This exists because `std::borrow::Cow<'a, [Foo]>` triggers a compiler bug when used as a field of `Foo` itself,
@@ -111,3 +113,5 @@ impl<T> PartialEq<Self> for CowSlice<'_, T> where T: PartialEq<T> {
 		**self == **other
 	}
 }
+
+impl<T> Eq for CowSlice<'_, T> where T: Eq {}

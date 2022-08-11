@@ -1,4 +1,4 @@
-impl<'de, 'a> serde::Deserializer<'de> for crate::Variant<'de> {
+impl<'de> serde::Deserializer<'de> for crate::Variant<'de> {
 	type Error = VariantDeserializeError;
 
 	fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Self::Error> where V: serde::de::Visitor<'de> {
@@ -9,8 +9,9 @@ impl<'de, 'a> serde::Deserializer<'de> for crate::Variant<'de> {
 				// since that's what serde's Deserialize impls for `std::collections::*Map` want.
 				if let crate::Signature::DictEntry { key: _, value: _ } = element_signature {
 					let entries =
-						elements.into_owned()
-						.into_iter()
+						elements
+						.iter()
+						.cloned()
 						.map(|element|
 							if let crate::Variant::DictEntry { key, value } = element {
 								Ok((key.into_owned(), value.into_owned()))
@@ -27,41 +28,41 @@ impl<'de, 'a> serde::Deserializer<'de> for crate::Variant<'de> {
 					})
 				}
 				else {
-					visitor.visit_seq(SeqAccess(elements.into_owned().into_iter()))
+					visitor.visit_seq(SeqAccess(elements.iter().cloned()))
 				},
 
 			crate::Variant::ArrayBool(elements) =>
-				visitor.visit_seq(SeqAccess(elements.into_owned().into_iter().map(crate::Variant::Bool))),
+				visitor.visit_seq(SeqAccess(elements.iter().copied().map(crate::Variant::Bool))),
 
 			crate::Variant::ArrayF64(elements) =>
-				visitor.visit_seq(SeqAccess(elements.into_owned().into_iter().map(crate::Variant::F64))),
+				visitor.visit_seq(SeqAccess(elements.iter().copied().map(crate::Variant::F64))),
 
 			crate::Variant::ArrayI16(elements) =>
-				visitor.visit_seq(SeqAccess(elements.into_owned().into_iter().map(crate::Variant::I16))),
+				visitor.visit_seq(SeqAccess(elements.iter().copied().map(crate::Variant::I16))),
 
 			crate::Variant::ArrayI32(elements) =>
-				visitor.visit_seq(SeqAccess(elements.into_owned().into_iter().map(crate::Variant::I32))),
+				visitor.visit_seq(SeqAccess(elements.iter().copied().map(crate::Variant::I32))),
 
 			crate::Variant::ArrayI64(elements) =>
-				visitor.visit_seq(SeqAccess(elements.into_owned().into_iter().map(crate::Variant::I64))),
+				visitor.visit_seq(SeqAccess(elements.iter().copied().map(crate::Variant::I64))),
 
 			crate::Variant::ArrayString(elements) =>
-				visitor.visit_seq(SeqAccess(elements.into_owned().into_iter().map(crate::Variant::String))),
+				visitor.visit_seq(SeqAccess(elements.iter().cloned().map(crate::Variant::String))),
 
 			crate::Variant::ArrayU8(elements) =>
-				visitor.visit_seq(SeqAccess(elements.into_owned().into_iter().map(crate::Variant::U8))),
+				visitor.visit_seq(SeqAccess(elements.iter().copied().map(crate::Variant::U8))),
 
 			crate::Variant::ArrayU16(elements) =>
-				visitor.visit_seq(SeqAccess(elements.into_owned().into_iter().map(crate::Variant::U16))),
+				visitor.visit_seq(SeqAccess(elements.iter().copied().map(crate::Variant::U16))),
 
 			crate::Variant::ArrayU32(elements) =>
-				visitor.visit_seq(SeqAccess(elements.into_owned().into_iter().map(crate::Variant::U32))),
+				visitor.visit_seq(SeqAccess(elements.iter().copied().map(crate::Variant::U32))),
 
 			crate::Variant::ArrayU64(elements) =>
-				visitor.visit_seq(SeqAccess(elements.into_owned().into_iter().map(crate::Variant::U64))),
+				visitor.visit_seq(SeqAccess(elements.iter().copied().map(crate::Variant::U64))),
 
 			crate::Variant::ArrayUnixFd(elements) =>
-				visitor.visit_seq(SeqAccess(elements.into_owned().into_iter().map(crate::Variant::UnixFd))),
+				visitor.visit_seq(SeqAccess(elements.iter().copied().map(crate::Variant::UnixFd))),
 
 			crate::Variant::Bool(value) =>
 				visitor.visit_bool(value),
@@ -93,10 +94,10 @@ impl<'de, 'a> serde::Deserializer<'de> for crate::Variant<'de> {
 			},
 
 			crate::Variant::Struct { fields } =>
-				visitor.visit_seq(SeqAccess(fields.into_owned().into_iter())),
+				visitor.visit_seq(SeqAccess(fields.iter().cloned())),
 
 			crate::Variant::Tuple { elements } =>
-				visitor.visit_seq(SeqAccess(elements.into_owned().into_iter())),
+				visitor.visit_seq(SeqAccess(elements.iter().cloned())),
 
 			crate::Variant::U8(value) =>
 				visitor.visit_u8(value),

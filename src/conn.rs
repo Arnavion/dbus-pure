@@ -286,7 +286,7 @@ impl std::error::Error for RecvError {
 }
 
 fn connect(bus_address: &std::ffi::OsStr) -> Result<std::os::unix::net::UnixStream, ConnectError> {
-	let bus_address_bytes = std::os::unix::ffi::OsStrExt::as_bytes(&*bus_address);
+	let bus_address_bytes = std::os::unix::ffi::OsStrExt::as_bytes(bus_address);
 
 	let mut connect_errs = vec![];
 
