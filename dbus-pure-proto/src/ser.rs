@@ -61,8 +61,7 @@ impl<'ser> Serializer<'ser> {
 	}
 
 	pub(crate) fn serialize_bool(&mut self, v: bool) {
-		let v: u32 = if v { 1 } else { 0 };
-		self.serialize_u32(v);
+		self.serialize_u32(v.into());
 	}
 
 	pub(crate) fn serialize_f64(&mut self, v: f64) {
