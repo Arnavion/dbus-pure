@@ -64,16 +64,19 @@ impl Connection {
 			},
 		};
 
-		let sasl_auth_id: std::borrow::Cow<'_, str> = match sasl_auth_type {
-			SaslAuthType::Uid =>
-				(unsafe { libc::getuid() })
-				.to_string()
-				.chars()
-				.map(|c| format!("{:2x}", c as u32))
-				.collect::<String>()
-				.into(),
+		let sasl_auth_id: String;
+		let sasl_auth_id = match sasl_auth_type {
+			SaslAuthType::Uid => {
+				sasl_auth_id =
+					(unsafe { libc::getuid() })
+					.to_string()
+					.chars()
+					.map(|c| format!("{:2x}", c as u32))
+					.collect::<String>();
+				&sasl_auth_id
+			},
 
-			SaslAuthType::Other(sasl_auth_id) => sasl_auth_id.into(),
+			SaslAuthType::Other(sasl_auth_id) => sasl_auth_id,
 		};
 
 		let reader = stream.try_clone().map_err(ConnectError::Authenticate)?;
