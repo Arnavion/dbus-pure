@@ -2,7 +2,7 @@
 name = "dbus-pure-proto"
 version = "0.1.0"
 license = "Apache-2.0 OR GPL-2.0-only"
-authors = ["Arnavion <arnavion@gmail.com>"]
+authors = ["Arnavion <me@arnavion.dev>"]
 edition = "2021"
 
 [dependencies]
