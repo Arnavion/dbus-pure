@@ -7,4 +7,4 @@ clean:
 
 test:
 	cargo test --all
-	cargo clippy --all
+	cargo clippy --all --tests --examples
