@@ -123,7 +123,7 @@ pub(super) fn run(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) 
 				&self,
 				client: &mut dbus_pure::Client,
 				#args
-			) -> Result<#return_ty, dbus_pure::MethodCallError> {
+			) -> std::result::Result<#return_ty, dbus_pure::MethodCallError> {
 				let body =
 					client.method_call(
 						self.name(),
