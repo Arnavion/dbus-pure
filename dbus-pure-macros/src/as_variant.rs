@@ -16,20 +16,20 @@ pub(super) fn run(input: proc_macro::TokenStream) -> Result<proc_macro2::TokenSt
 
 			let fields_signature =
 				fields.iter()
-				.map(|syn::Field { ty, .. }| quote::quote! { <#ty as dbus_pure_proto::AsVariant>::signature() });
+				.map(|syn::Field { ty, .. }| quote::quote! { <#ty as dbus_pure::proto::AsVariant>::signature() });
 
 			let fields_as_variant =
 				fields.iter()
-				.map(|syn::Field { ident, .. }| quote::quote! { <_ as dbus_pure_proto::AsVariant>::as_variant(&self.#ident) });
+				.map(|syn::Field { ident, .. }| quote::quote! { <_ as dbus_pure::proto::AsVariant>::as_variant(&self.#ident) });
 
 			(
 				quote::quote! {
-					dbus_pure_proto::Signature::Struct {
+					dbus_pure::proto::Signature::Struct {
 						fields: vec![#(#fields_signature ,)*],
 					}
 				},
 				quote::quote! {
-					dbus_pure_proto::Variant::Struct {
+					dbus_pure::proto::Variant::Struct {
 						fields: vec![#(#fields_as_variant ,)*].into(),
 					}
 				},
@@ -43,10 +43,10 @@ pub(super) fn run(input: proc_macro::TokenStream) -> Result<proc_macro2::TokenSt
 
 			(
 				quote::quote! {
-					<#ty as dbus_pure_proto::AsVariant>::signature()
+					<#ty as dbus_pure::proto::AsVariant>::signature()
 				},
 				quote::quote! {
-					<dbus_pure_proto::AsVariant>::as_variant(&self.0)
+					<dbus_pure::proto::AsVariant>::as_variant(&self.0)
 				},
 			)
 		},
@@ -62,12 +62,12 @@ pub(super) fn run(input: proc_macro::TokenStream) -> Result<proc_macro2::TokenSt
 	};
 
 	let result = quote::quote! {
-		impl #impl_generics dbus_pure_proto::AsVariant for #ident #ty_generics #where_clause {
-			fn signature() -> dbus_pure_proto::Signature {
+		impl #impl_generics dbus_pure::proto::AsVariant for #ident #ty_generics #where_clause {
+			fn signature() -> dbus_pure::proto::Signature {
 				#signature_body
 			}
 
-			fn as_variant<'__a>(&'__a self) -> dbus_pure_proto::Variant<'__a> {
+			fn as_variant<'__a>(&'__a self) -> dbus_pure::proto::Variant<'__a> {
 				#as_variant_body
 			}
 		}
