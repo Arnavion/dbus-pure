@@ -209,3 +209,27 @@ impl<T> AsVariant for Vec<T> where T: AsVariant {
 		}
 	}
 }
+
+impl<K, V, S> AsVariant for std::collections::HashMap<K, V, S> where K: AsVariant, V: AsVariant {
+	fn signature() -> crate::Signature {
+		crate::Signature::Array {
+			element: Box::new(crate::Signature::DictEntry {
+				key: Box::new(<K as AsVariant>::signature()),
+				value: Box::new(<V as AsVariant>::signature()),
+			}),
+		}
+	}
+
+	fn as_variant<'a>(&'a self) -> crate::Variant<'a> {
+		crate::Variant::Array {
+			element_signature: crate::Signature::DictEntry {
+				key: Box::new(<K as AsVariant>::signature()),
+				value: Box::new(<V as AsVariant>::signature()),
+			},
+			elements: self.iter().map(|(key, value)| crate::Variant::DictEntry {
+				key: crate::std2::CowRef::Owned(Box::new(key.as_variant())),
+				value: crate::std2::CowRef::Owned(Box::new(value.as_variant())),
+			}).collect::<Vec<_>>().into(),
+		}
+	}
+}
