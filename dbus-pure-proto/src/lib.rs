@@ -137,6 +137,13 @@ impl ObjectPath<'_> {
 	}
 }
 
+impl<'de, 'a> serde::Deserialize<'de> for ObjectPath<'a> {
+	fn deserialize<D>(deserializer: D) -> Result<ObjectPath<'a>, D::Error> where D: serde::Deserializer<'de>,
+	{
+		Ok(ObjectPath(std::borrow::Cow::deserialize(deserializer)?))
+	}
+}
+
 /// A signature.
 ///
 /// Use `.to_string()` to get the string representation of the signature.
