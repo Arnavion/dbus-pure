@@ -9,11 +9,11 @@
 #[allow(unused_extern_crates)] // Needed for stable 1.40.0 but not for nightly
 extern crate proc_macro;
 
-mod as_variant;
-
 mod interface;
 
 mod object;
+
+mod to_variant;
 
 fn run(result: Result<proc_macro2::TokenStream, syn::Error>) -> proc_macro::TokenStream {
 	let token_stream = match result {
@@ -31,22 +31,6 @@ impl<T, E> ResultExt<T> for Result<T, E> where E: std::fmt::Display {
 	fn spanning(self, spanned: impl quote::ToTokens) -> Result<T, syn::Error> {
 		self.map_err(|err| syn::Error::new_spanned(spanned, err))
 	}
-}
-
-/// Derives `dbus_pure_proto::AsVariant` on the type.
-///
-/// # Example
-///
-/// ```rust
-/// #[derive(Debug, dbus_pure_macros::AsVariant, serde::Deserialize)]
-/// struct Response<'a> {
-///     foo: u32,
-///     bar: std::borrow::Cow<'a, str>,
-/// }
-/// ```
-#[proc_macro_derive(AsVariant)]
-pub fn as_variant(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-	run(as_variant::run(input))
 }
 
 /// Takes a trait representing a D-Bus interface as input, and emits a trait that can be used to invoke methods using D-Bus.
@@ -140,4 +124,20 @@ pub fn interface(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -
 #[proc_macro_attribute]
 pub fn object(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 	run(object::run(attr, item))
+}
+
+/// Derives `dbus_pure_proto::ToVariant` on the type.
+///
+/// # Example
+///
+/// ```rust
+/// #[derive(Debug, dbus_pure_macros::ToVariant, serde::Deserialize)]
+/// struct Response<'a> {
+///     foo: u32,
+///     bar: std::borrow::Cow<'a, str>,
+/// }
+/// ```
+#[proc_macro_derive(ToVariant)]
+pub fn to_variant(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+	run(to_variant::run(input))
 }

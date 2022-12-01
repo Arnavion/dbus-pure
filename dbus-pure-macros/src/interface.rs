@@ -57,7 +57,7 @@ pub(super) fn run(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) 
 				quote::quote! {
 					Some(&dbus_pure::proto::Variant::Tuple {
 						elements: (&[
-							#(<_ as dbus_pure::proto::AsVariant>::as_variant(#arg_variants),)*
+							#(<_ as dbus_pure::proto::ToVariant>::to_variant(#arg_variants),)*
 						][..]).into(),
 					})
 				}

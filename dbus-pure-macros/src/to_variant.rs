@@ -10,17 +10,17 @@ pub(super) fn run(input: proc_macro::TokenStream) -> Result<proc_macro2::TokenSt
 	let ident = &input.ident;
 	let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
 
-	let (signature_body, as_variant_body) = match input.data {
+	let (signature_body, to_variant_body) = match input.data {
 		syn::Data::Struct(syn::DataStruct { fields: syn::Fields::Named(syn::FieldsNamed { named: fields, .. }), .. }) => {
 			// Variant::Struct
 
 			let fields_signature =
 				fields.iter()
-				.map(|syn::Field { ty, .. }| quote::quote! { <#ty as dbus_pure::proto::AsVariant>::signature() });
+				.map(|syn::Field { ty, .. }| quote::quote! { <#ty as dbus_pure::proto::ToVariant>::signature() });
 
-			let fields_as_variant =
+			let fields_to_variant =
 				fields.iter()
-				.map(|syn::Field { ident, .. }| quote::quote! { <_ as dbus_pure::proto::AsVariant>::as_variant(&self.#ident) });
+				.map(|syn::Field { ident, .. }| quote::quote! { <_ as dbus_pure::proto::ToVariant>::to_variant(&self.#ident) });
 
 			(
 				quote::quote! {
@@ -30,7 +30,7 @@ pub(super) fn run(input: proc_macro::TokenStream) -> Result<proc_macro2::TokenSt
 				},
 				quote::quote! {
 					dbus_pure::proto::Variant::Struct {
-						fields: vec![#(#fields_as_variant ,)*].into(),
+						fields: vec![#(#fields_to_variant ,)*].into(),
 					}
 				},
 			)
@@ -43,32 +43,32 @@ pub(super) fn run(input: proc_macro::TokenStream) -> Result<proc_macro2::TokenSt
 
 			(
 				quote::quote! {
-					<#ty as dbus_pure::proto::AsVariant>::signature()
+					<#ty as dbus_pure::proto::ToVariant>::signature()
 				},
 				quote::quote! {
-					<dbus_pure::proto::AsVariant>::as_variant(&self.0)
+					<dbus_pure::proto::ToVariant>::to_variant(&self.0)
 				},
 			)
 		},
 
 		syn::Data::Struct(syn::DataStruct { fields: syn::Fields::Unnamed(..), .. }) =>
-			return Err("#[derive(AsVariant)] cannot be used on tuple structs with one field").spanning(&tokens),
+			return Err("#[derive(ToVariant)] cannot be used on tuple structs with one field").spanning(&tokens),
 
 		syn::Data::Struct(syn::DataStruct { fields: syn::Fields::Unit, .. }) =>
-			return Err("#[derive(AsVariant)] cannot be used on unit structs").spanning(&tokens),
+			return Err("#[derive(ToVariant)] cannot be used on unit structs").spanning(&tokens),
 
 		syn::Data::Enum(_) | syn::Data::Union(_) =>
-			return Err("#[derive(AsVariant)] can only be used on structs").spanning(&tokens),
+			return Err("#[derive(ToVariant)] can only be used on structs").spanning(&tokens),
 	};
 
 	let result = quote::quote! {
-		impl #impl_generics dbus_pure::proto::AsVariant for #ident #ty_generics #where_clause {
+		impl #impl_generics dbus_pure::proto::ToVariant for #ident #ty_generics #where_clause {
 			fn signature() -> dbus_pure::proto::Signature {
 				#signature_body
 			}
 
-			fn as_variant<'__a>(&'__a self) -> dbus_pure::proto::Variant<'__a> {
-				#as_variant_body
+			fn to_variant<'__a>(&'__a self) -> dbus_pure::proto::Variant<'__a> {
+				#to_variant_body
 			}
 		}
 	};

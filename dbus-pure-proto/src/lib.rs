@@ -18,11 +18,6 @@
 //!
 //! To actually connect to a bus and communicate with it, see the `dbus-pure` crate.
 
-mod as_variant;
-pub use as_variant::{
-	AsVariant,
-};
-
 pub(crate) mod de;
 pub use de::{
 	DeserializeError,
@@ -45,6 +40,11 @@ pub use ser::{
 };
 
 pub mod std2;
+
+mod to_variant;
+pub use to_variant::{
+	ToVariant,
+};
 
 mod variant;
 pub use variant::{
