@@ -12,7 +12,7 @@ libc = { version = "0.2", default-features = false }
 percent-encoding = { version = "2", default-features = false, features = [
 	"alloc", # PercentDecode::decode_utf8
 ] }
-serde = { version = "1", default-features = false }
+serde = { version = "1.0.70", default-features = false }
 
 [workspace]
 members = [
