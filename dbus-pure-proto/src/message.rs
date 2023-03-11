@@ -17,7 +17,7 @@ pub struct MessageHeader<'a> {
 	pub fields: std::borrow::Cow<'a, [MessageHeaderField<'a>]>,
 }
 
-pub fn deserialize_message<'a>(buf: &'a [u8]) -> Result<(MessageHeader<'a>, Option<crate::Variant<'a>>, usize), crate::DeserializeError> {
+pub fn deserialize_message(buf: &[u8]) -> Result<(MessageHeader<'_>, Option<crate::Variant<'_>>, usize), crate::DeserializeError> {
 	// Arbitrarily pick `Endianness::Little` to initialize the deserializer. It'll be overridden as soon as the endianness marker is parsed.
 	let mut deserializer = crate::de::Deserializer::new(buf, 0, crate::Endianness::Little);
 

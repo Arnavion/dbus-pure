@@ -4,8 +4,6 @@
 	clippy::default_trait_access,
 	clippy::let_and_return,
 	clippy::let_unit_value,
-	clippy::too_many_lines,
-	clippy::unneeded_field_pattern,
 )]
 
 // Connects to the session bus and subscribes to screen lock / unlock events.

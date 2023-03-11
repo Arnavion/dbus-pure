@@ -1,15 +1,11 @@
 #![deny(rust_2018_idioms, warnings)]
 #![deny(clippy::all, clippy::pedantic)]
 #![allow(
-	clippy::default_trait_access,
-	clippy::let_unit_value,
 	clippy::missing_errors_doc,
 	clippy::module_name_repetitions,
 	clippy::must_use_candidate,
-	clippy::needless_lifetimes,
 	clippy::similar_names,
 	clippy::too_many_lines,
-	clippy::unneeded_field_pattern,
 )]
 
 //! This is a pure Rust implementation of the D-Bus binary protocol.

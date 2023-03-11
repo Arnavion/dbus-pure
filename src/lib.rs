@@ -6,8 +6,6 @@
 	clippy::let_unit_value,
 	clippy::missing_errors_doc,
 	clippy::must_use_candidate,
-	clippy::shadow_unrelated,
-	clippy::unneeded_field_pattern,
 )]
 
 //! This is a pure Rust implementation of a D-Bus client.
