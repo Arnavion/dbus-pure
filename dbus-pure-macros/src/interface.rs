@@ -13,7 +13,7 @@ pub(super) fn run(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) 
 
 	for item in &input.items {
 		let (attrs, sig) = match item {
-			syn::TraitItem::Method(syn::TraitItemMethod { attrs, sig, .. }) => (attrs, sig),
+			syn::TraitItem::Fn(syn::TraitItemFn { attrs, sig, .. }) => (attrs, sig),
 
 			impl_item => return Err("#[dbus_pure_macros::object] can only be applied to impl blocks that contain empty fn definitions").spanning(impl_item),
 		};
@@ -23,9 +23,8 @@ pub(super) fn run(attr: proc_macro::TokenStream, item: proc_macro::TokenStream) 
 			.next()
 			.ok_or(r#"item is missing a `#[name = "..."]` attribute to set the D-Bus function name"#)
 			.spanning(item)?;
-		let dbus_fn_name_meta = dbus_fn_name_attr.parse_meta()?;
-		let dbus_fn_name = match dbus_fn_name_meta {
-			syn::Meta::NameValue(syn::MetaNameValue { path, lit, .. }) if path.is_ident("name") => lit,
+		let dbus_fn_name = match &dbus_fn_name_attr.meta {
+			syn::Meta::NameValue(syn::MetaNameValue { path, value: syn::Expr::Lit(syn::ExprLit { lit, .. }), .. }) if path.is_ident("name") => lit,
 			meta => return Err(r#"unexpected attribute, expected `#[name = "..."]`"#).spanning(meta),
 		};
 

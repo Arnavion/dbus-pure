@@ -7,7 +7,7 @@ edition = "2021"
 [dependencies]
 proc-macro2 = { version = "1", default-features = false }
 quote = { version = "1", default-features = false }
-syn = { version = "1", default-features = false, features = [
+syn = { version = "2", default-features = false, features = [
 	"derive", # syn::Data
 	"full",
 	"parsing", # syn::parse fn and syn::parse module
