@@ -64,15 +64,15 @@ impl Connection {
 			},
 		};
 
-		let sasl_auth_id: String;
+		let mut sasl_auth_id;
 		let sasl_auth_id = match sasl_auth_type {
 			SaslAuthType::Uid => {
-				sasl_auth_id =
-					(unsafe { libc::getuid() })
-					.to_string()
-					.chars()
-					.map(|c| format!("{:2x}", c as u32))
-					.collect::<String>();
+				let uid = (unsafe { libc::getuid() }).to_string();
+				sasl_auth_id = String::with_capacity(uid.len() * 2);
+				for c in uid.chars() {
+					use std::fmt::Write;
+					write!(sasl_auth_id, "{:02x}", c as u32).expect("cannot fail");
+				}
 				&sasl_auth_id
 			},
 
@@ -141,7 +141,7 @@ impl Connection {
 
 		let () = crate::proto::serialize_message(header, body, &mut self.write_buf, self.write_endianness).map_err(SendError::Serialize)?;
 
-		let _ = self.writer.write_all(&self.write_buf).map_err(SendError::Io)?;
+		let () = self.writer.write_all(&self.write_buf).map_err(SendError::Io)?;
 		self.write_buf.clear();
 
 		let () = self.writer.flush().map_err(SendError::Io)?;
