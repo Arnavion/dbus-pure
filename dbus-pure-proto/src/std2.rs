@@ -98,7 +98,6 @@ impl<T> From<Vec<T>> for CowSlice<'_, T> {
 	}
 }
 
-// impl<'a, T> Into<std::borrow::Cow<'a, [T]>> for CowSlice<'a, T> where T: Clone {
 impl<'a, T> From<CowSlice<'a, T>> for std::borrow::Cow<'a, [T]> where T: Clone {
 	fn from(cs: CowSlice<'a, T>) -> Self {
 		match cs {

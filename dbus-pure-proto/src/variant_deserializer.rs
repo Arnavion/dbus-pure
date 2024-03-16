@@ -212,10 +212,6 @@ impl serde::de::Error for VariantDeserializeError {
 
 #[cfg(test)]
 mod tests {
-	#![allow(
-		clippy::unreadable_literal,
-	)]
-
 	#[test]
 	fn test_variant_deserializer() {
 		fn test<T>(
@@ -287,8 +283,8 @@ mod tests {
 		);
 
 		test(
-			crate::Variant::ArrayU32((&[0x01020304, 0x05060708][..]).into()),
-			&[0x01020304_u32, 0x05060708],
+			crate::Variant::ArrayU32((&[0x0102_0304, 0x0506_0708][..]).into()),
+			&[0x0102_0304_u32, 0x0506_0708],
 		);
 
 		test(
@@ -315,8 +311,8 @@ mod tests {
 		);
 
 		test(
-			crate::Variant::U32(0x01020304),
-			&0x01020304_u32,
+			crate::Variant::U32(0x0102_0304),
+			&0x0102_0304_u32,
 		);
 	}
 }

@@ -700,11 +700,6 @@ impl Variant<'_> {
 
 #[cfg(test)]
 mod tests {
-	#![allow(
-		clippy::unreadable_literal,
-		clippy::unusual_byte_groupings,
-	)]
-
 	#[test]
 	fn test_variant_serde() {
 		fn test<'a>(
@@ -735,7 +730,7 @@ mod tests {
 				\x04\x03\x02\x01\
 			",
 			&super::Variant::ArrayU64((&[
-				0x01020304_05060708_u64,
+				0x0102_0304_0506_0708_u64,
 			][..]).into()),
 		);
 
@@ -752,7 +747,7 @@ mod tests {
 				elements: (&[
 					super::Variant::U8(0x05),
 					super::Variant::ArrayU64((&[
-						0x01020304_05060708_u64,
+						0x0102_0304_0506_0708_u64,
 					][..]).into()),
 				][..]).into(),
 			},
@@ -790,8 +785,8 @@ mod tests {
 				\x08\x07\x06\x05\
 			",
 			&super::Variant::ArrayU32((&[
-				0x01020304_u32,
-				0x05060708_u32,
+				0x0102_0304_u32,
+				0x0506_0708_u32,
 			][..]).into()),
 		);
 
@@ -808,8 +803,8 @@ mod tests {
 				elements: (&[
 					super::Variant::U8(0x05),
 					super::Variant::ArrayU32((&[
-						0x01020304_u32,
-						0x05060708_u32,
+						0x0102_0304_u32,
+						0x0506_0708_u32,
 					][..]).into()),
 				][..]).into(),
 			},
@@ -1019,7 +1014,7 @@ mod tests {
 		test(
 			"h",
 			b"\x04\x03\x02\x01",
-			&super::Variant::UnixFd(crate::UnixFd(0x01020304)),
+			&super::Variant::UnixFd(crate::UnixFd(0x0102_0304)),
 		);
 
 		test(
@@ -1032,7 +1027,7 @@ mod tests {
 			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
-					super::Variant::UnixFd(crate::UnixFd(0x01020304)),
+					super::Variant::UnixFd(crate::UnixFd(0x0102_0304)),
 				][..]).into(),
 			},
 		);
@@ -1040,7 +1035,7 @@ mod tests {
 		test(
 			"i",
 			b"\x00\x00\x00\x01",
-			&super::Variant::I32(0x01000000),
+			&super::Variant::I32(0x0100_0000),
 		);
 
 		test(
@@ -1053,7 +1048,7 @@ mod tests {
 			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
-					super::Variant::I32(0x01020304),
+					super::Variant::I32(0x0102_0304),
 				][..]).into(),
 			},
 		);
@@ -1151,7 +1146,7 @@ mod tests {
 		test(
 			"t",
 			b"\x08\x07\x06\x05\x04\x03\x02\x01",
-			&super::Variant::U64(0x01020304_05060708),
+			&super::Variant::U64(0x0102_0304_0506_0708),
 		);
 
 		test(
@@ -1164,7 +1159,7 @@ mod tests {
 			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
-					super::Variant::U64(0x01020304_05060708),
+					super::Variant::U64(0x0102_0304_0506_0708),
 				][..]).into(),
 			},
 		);
@@ -1172,7 +1167,7 @@ mod tests {
 		test(
 			"u",
 			b"\x04\x03\x02\x01",
-			&super::Variant::U32(0x01020304),
+			&super::Variant::U32(0x0102_0304),
 		);
 
 		test(
@@ -1185,7 +1180,7 @@ mod tests {
 			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
-					super::Variant::U32(0x01020304),
+					super::Variant::U32(0x0102_0304),
 				][..]).into(),
 			},
 		);
@@ -1226,7 +1221,7 @@ mod tests {
 		test(
 			"x",
 			b"\x08\x07\x06\x05\x04\x03\x02\x01",
-			&super::Variant::I64(0x01020304_05060708),
+			&super::Variant::I64(0x0102_0304_0506_0708),
 		);
 
 		test(
@@ -1239,7 +1234,7 @@ mod tests {
 			&super::Variant::Tuple {
 				elements: (&[
 					super::Variant::U8(0x05),
-					super::Variant::I64(0x01020304_05060708),
+					super::Variant::I64(0x0102_0304_0506_0708),
 				][..]).into(),
 			},
 		);
@@ -1274,7 +1269,7 @@ mod tests {
 			",
 			&super::Variant::Struct {
 				fields: (&[
-					super::Variant::U32(0x01020304),
+					super::Variant::U32(0x0102_0304),
 					super::Variant::ObjectPath(crate::ObjectPath("/org/freedesktop/DBus".into())),
 					super::Variant::String("org.freedesktop.DBus".into()),
 				][..]).into(),
@@ -1297,14 +1292,14 @@ mod tests {
 			",
 			&super::Variant::Struct {
 				fields: (&[
-					super::Variant::U32(0x01020304),
-					super::Variant::U32(0x05060708),
+					super::Variant::U32(0x0102_0304),
+					super::Variant::U32(0x0506_0708),
 					super::Variant::ObjectPath(crate::ObjectPath("/org/freedesktop/DBus".into())),
 					super::Variant::Struct {
 						fields: (&[
 							super::Variant::String("org.freedesktop.DBus".into()),
 							super::Variant::ObjectPath(crate::ObjectPath("/org/freedesktop/DBus".into())),
-							super::Variant::U32(0x01020304),
+							super::Variant::U32(0x0102_0304),
 						][..]).into(),
 					},
 					super::Variant::String("org.freedesktop.DBus".into()),
@@ -1327,7 +1322,7 @@ mod tests {
 					super::Variant::U8(0x05),
 					super::Variant::Struct {
 						fields: (&[
-							super::Variant::U32(0x01020304),
+							super::Variant::U32(0x0102_0304),
 							super::Variant::ObjectPath(crate::ObjectPath("/org/freedesktop/DBus".into())),
 							super::Variant::String("org.freedesktop.DBus".into()),
 						][..]).into(),
@@ -1346,7 +1341,7 @@ mod tests {
 			",
 			&super::Variant::Tuple {
 				elements: (&[
-					super::Variant::U32(0x01020304),
+					super::Variant::U32(0x0102_0304),
 					super::Variant::ObjectPath(crate::ObjectPath("/org/freedesktop/DBus".into())),
 					super::Variant::String("org.freedesktop.DBus".into()),
 				][..]).into(),
