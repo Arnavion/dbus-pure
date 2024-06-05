@@ -51,8 +51,8 @@ impl Client {
 	///
 	/// Returns the serial of the message.
 	pub fn send(&mut self, header: &mut crate::proto::MessageHeader<'_>, body: Option<&crate::proto::Variant<'_>>) -> Result<u32, crate::conn::SendError> {
-		// Serial is in the range 1..=u32::max_value() , ie it rolls over to 1 rather than 0
-		self.last_serial = self.last_serial % u32::max_value() + 1;
+		// Serial is in the range 1..=u32::MAX , ie it rolls over to 1 rather than 0
+		self.last_serial = self.last_serial % u32::MAX + 1;
 		header.serial = self.last_serial;
 
 		if let Some(name) = &self.name {
