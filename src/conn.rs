@@ -64,16 +64,15 @@ impl Connection {
 			},
 		};
 
-		let mut sasl_auth_id;
 		let sasl_auth_id = match sasl_auth_type {
-			SaslAuthType::Uid => {
+			SaslAuthType::Uid => &{
 				let uid = (unsafe { libc::getuid() }).to_string();
-				sasl_auth_id = String::with_capacity(uid.len() * 2);
+				let mut sasl_auth_id = String::with_capacity(uid.len() * 2);
 				for c in uid.chars() {
 					use std::fmt::Write;
 					write!(sasl_auth_id, "{:02x}", c as u32).expect("cannot fail");
 				}
-				&sasl_auth_id
+				sasl_auth_id
 			},
 
 			SaslAuthType::Other(sasl_auth_id) => sasl_auth_id,
