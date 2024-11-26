@@ -7,7 +7,7 @@ pub enum Variant<'a> {
 	/// For example, byte arrays (`ay`) will always be deserialized as `ArrayU8`.
 	Array {
 		element_signature: crate::Signature,
-		elements: crate::std2::CowSlice<'a, Variant<'a>>,
+		elements: std::borrow::Cow<'a, [Variant<'a>]>,
 	},
 
 	/// Simpler wrapper over a bool array (`ab`) than the generic `Array` variant.
@@ -64,7 +64,7 @@ pub enum Variant<'a> {
 	String(std::borrow::Cow<'a, str>),
 
 	Struct {
-		fields: crate::std2::CowSlice<'a, Variant<'a>>,
+		fields: std::borrow::Cow<'a, [Variant<'a>]>,
 	},
 
 	/// A sequence of signatures.
@@ -72,7 +72,7 @@ pub enum Variant<'a> {
 	/// A message body with one or more parameters is of this type. For example, if a method takes two parameters of type string and byte,
 	/// the body should be a `Variant::Tuple { elements: (&[Variant::String(...), Variant::U8(...)][..]).into() }`
 	Tuple {
-		elements: crate::std2::CowSlice<'a, Variant<'a>>,
+		elements: std::borrow::Cow<'a, [Variant<'a>]>,
 	},
 
 	U8(u8),
