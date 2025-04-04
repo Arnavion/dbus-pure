@@ -268,14 +268,14 @@ mod tests {
 					},
 				].into()
 			},
-			{
+			&{
 				#[derive(Debug, PartialEq, serde_derive::Deserialize)]
 				struct Foo {
 					bar: String,
 					baz: u32,
 				}
 
-				&[
+				[
 					Foo { bar: "abc".to_owned(), baz: 3 },
 					Foo { bar: "def".to_owned(), baz: 5 },
 				]

@@ -91,7 +91,7 @@ impl Connection {
 
 		let _ = reader.read_until(b'\n', &mut read_buf).map_err(ConnectError::Authenticate)?;
 		if read_buf.iter().rev().nth(1).copied() != Some(b'\r') {
-			return Err(ConnectError::Authenticate(std::io::Error::new(std::io::ErrorKind::Other, "malformed response")));
+			return Err(ConnectError::Authenticate(std::io::Error::other("malformed response")));
 		}
 
 		let server_guid =
@@ -99,7 +99,7 @@ impl Connection {
 				&read_buf[b"OK ".len()..][..32]
 			}
 			else {
-				return Err(ConnectError::Authenticate(std::io::Error::new(std::io::ErrorKind::Other, "malformed response")));
+				return Err(ConnectError::Authenticate(std::io::Error::other("malformed response")));
 			};
 		let server_guid = server_guid.to_owned();
 
@@ -326,10 +326,7 @@ fn connect(bus_address: &std::ffi::OsStr) -> Result<std::os::unix::net::UnixStre
 			let stream = std::os::unix::net::UnixStream::connect(&path);
 			match stream {
 				Ok(stream) => return Ok(stream),
-				Err(err) => {
-					connect_errs.push((path, err));
-					continue;
-				},
+				Err(err) => connect_errs.push((path, err)),
 			}
 		}
 	}

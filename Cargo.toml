@@ -3,7 +3,7 @@ name = "dbus-pure"
 version = "0.1.0"
 license = "Apache-2.0 OR GPL-2.0-only"
 authors = ["Arnav Singh <me@arnavion.dev>"]
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 dbus-pure-macros = { version = "0.1", path = "./dbus-pure-macros" }
