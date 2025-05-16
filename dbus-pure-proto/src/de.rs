@@ -15,8 +15,7 @@ impl<'de> Deserializer<'de> {
 	}
 
 	pub(crate) fn pad_to(&mut self, alignment: usize) -> Result<(), DeserializeError> {
-		// TODO(rustup): Use `self.pos.next_multiple_of(alignment)` when that is stabilized.
-		let new_pos = self.pos.div_ceil(alignment) * alignment;
+		let new_pos = self.pos.next_multiple_of(alignment);
 		if self.buf.len() < new_pos {
 			return Err(DeserializeError::EndOfInput);
 		}

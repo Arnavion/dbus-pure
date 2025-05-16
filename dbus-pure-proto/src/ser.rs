@@ -17,8 +17,7 @@ impl<'ser> Serializer<'ser> {
 
 	pub(crate) fn pad_to(&mut self, alignment: usize) {
 		let pos = self.buf.len() - self.start;
-		// TODO(rustup): Use `pos.next_multiple_of(alignment)` when that is stabilized.
-		let new_pos = pos.div_ceil(alignment) * alignment;
+		let new_pos = pos.next_multiple_of(alignment);
 		let new_len = self.start + new_pos;
 		self.buf.resize(new_len, 0);
 	}
