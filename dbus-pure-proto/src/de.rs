@@ -168,7 +168,7 @@ impl<'de> Deserializer<'de> {
 			return Err(DeserializeError::StringMissingNulTerminator);
 		}
 
-		let s = std::str::from_utf8(data).map_err(DeserializeError::InvalidUtf8)?;
+		let s = str::from_utf8(data).map_err(DeserializeError::InvalidUtf8)?;
 		Ok(s)
 	}
 
