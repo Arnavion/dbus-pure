@@ -26,7 +26,7 @@ fn main() -> Result<(), Error> {
 			connection.set_write_endianness(dbus_pure::proto::Endianness::Little);
 		}
 		else {
-			return Err(format!(r#"invalid value of FORCE_WRITE_ENDIANNESS env var {s:?}, expected "big" or "little""#).into());
+			return Err(format!(r#"invalid value of FORCE_WRITE_ENDIANNESS env var {:?}, expected "big" or "little""#, s.display()).into());
 		}
 	}
 

@@ -212,7 +212,7 @@ impl std::fmt::Display for ConnectError {
 						f.write_str(", ")?;
 					}
 
-					write!(f, "{bus_path:?}: {:?}", err.to_string())?;
+					write!(f, "{:?}: {:?}", bus_path.display(), err.to_string())?;
 				}
 				f.write_str("]")?;
 				Ok(())
@@ -220,7 +220,7 @@ impl std::fmt::Display for ConnectError {
 
 			ConnectError::MissingSessionBusEnvVar => f.write_str("the DBUS_SESSION_BUS_ADDRESS env var is not set"),
 
-			ConnectError::UnsupportedTransport(value) => write!(f, "the bus path {value:?} has an unsupported transport"),
+			ConnectError::UnsupportedTransport(value) => write!(f, "the bus path {:?} has an unsupported transport", value.display()),
 		}
 	}
 }
