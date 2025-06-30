@@ -304,20 +304,18 @@ fn connect(bus_address: &std::ffi::OsStr) -> Result<std::os::unix::net::UnixStre
 				let mut pair_parts = pair.splitn(2, |&b| b == b'=');
 
 				let key = pair_parts.next().expect("split returns at least one subslice");
-				if let Ok(key) = percent_encoding::percent_decode(key).decode_utf8() {
-					if key == "path" {
-						// We want to stop at the first `path` component even if it has no value,
-						// so return `Some(None)` in that case rather than `None`.
-						let value =
-							pair_parts.next()
-							.map(|value| {
-								let value: Vec<u8> = percent_encoding::percent_decode(value).collect();
-								let value: &std::ffi::OsStr = std::os::unix::ffi::OsStrExt::from_bytes(&value);
-								let value: std::path::PathBuf = value.into();
-								value
-							});
-						return Some(value);
-					}
+				if let Ok(key) = percent_encoding::percent_decode(key).decode_utf8() && key == "path" {
+					// We want to stop at the first `path` component even if it has no value,
+					// so return `Some(None)` in that case rather than `None`.
+					let value =
+						pair_parts.next()
+						.map(|value| {
+							let value: Vec<u8> = percent_encoding::percent_decode(value).collect();
+							let value: &std::ffi::OsStr = std::os::unix::ffi::OsStrExt::from_bytes(&value);
+							let value: std::path::PathBuf = value.into();
+							value
+						});
+					return Some(value);
 				}
 
 				None
